@@ -98,7 +98,7 @@ while(True):
 		if (proc not in postproc_inputs) and (inpkey is not None):
 			postproc_inputs[proc] = redishash.getkey(inpkey) if inpkey is not None else None
 			if postproc_inputs[proc] is None:
-				print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, PROC_INP_KEY))
+				print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, inpkey))
 				break
 			postproc_inputs[proc] = postproc_inputs[proc].split(',')
 			postproc_inputindices[proc] = 0
@@ -111,7 +111,7 @@ while(True):
 			postproc_args[proc] = redishash.getkey(argkey)
 			postproc_argindices[proc] = 0
 			if postproc_args[proc] is None:
-				print('Post-Process {}: no args key found \'{}\'.'.format(proc, PROC_ARG_KEY))
+				print('Post-Process {}: no args key found \'{}\'.'.format(proc, argkey))
 				postproc_args[proc] = [None]
 			else:
 				postproc_args[proc] = postproc_args[proc].split(',')
