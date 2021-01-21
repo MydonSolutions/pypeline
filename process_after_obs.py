@@ -128,7 +128,7 @@ while(True):
 		postproc_inputs[proc] = postproc_inputs[proc].split(',')
 		postproc_inputindices[proc] = 0
 
-		if argkey is not None:
+		if (argkey is not None) and (proc not in postproc_args):
 			postproc_args[proc] = redishash.getkey(argkey)
 			postproc_argindices[proc] = 0
 			if postproc_args[proc] is None:
@@ -136,7 +136,7 @@ while(True):
 				postproc_args[proc] = [None]
 			else:
 				postproc_args[proc] = postproc_args[proc].split(',')
-		else:
+		elif argkey is None:
 			postproc_args[proc] = [None]
 			postproc_argindices[proc] = 0
 
