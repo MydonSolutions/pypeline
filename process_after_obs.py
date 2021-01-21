@@ -9,7 +9,7 @@ import socket
 from string import Template
 import argparse
 import importlib
-import postproc_aux
+import redishash
 
 #from Hashpipe import hashpipe_aux
 import sys
@@ -53,7 +53,7 @@ parser.add_argument('instance', type=int,
                     help='The instance ID of the hashpipe.')
 args = parser.parse_args()
 
-redishash = postproc_aux.HashpipeRedis(socket.gethostname(), args.instance)
+redishash = redishash.RedisHash(socket.gethostname(), args.instance)
 
 instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')

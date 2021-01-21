@@ -1,7 +1,7 @@
 from string import Template
 import redis
 
-class HashpipeRedis:
+class RedisHash:
 	def __init__(self, hostname, instance, redishost='redishost'):
 		self.redis_obj = redis.Redis(redishost)
 
