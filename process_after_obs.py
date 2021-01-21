@@ -120,15 +120,19 @@ while(True):
 
 		inpkey = globals()[proc].PROC_INP_KEY
 		argkey = globals()[proc].PROC_ARG_KEY
+		if (proc not in postproc_inputs) and (inpkey is not None):
+			postproc_inputs[proc] = redishash.getkey(inpkey) if inpkey is not None else None
+			if postproc_inputs[proc] is None:
+				print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, PROC_INP_KEY))
+				break
+			postproc_inputs[proc] = postproc_inputs[proc].split(',')
+			postproc_inputindices[proc] = 0
+		elif inpkey is None:
+			postproc_inputs[proc] = [None]
+			postproc_inputindices[proc] = 0
 
-		postproc_inputs[proc] = redishash.getkey(inpkey) if inpkey is not None else None
-		if postproc_inputs[proc] is None and inpkey is not None:
-			print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, PROC_INP_KEY))
-			break
-		postproc_inputs[proc] = postproc_inputs[proc].split(',')
-		postproc_inputindices[proc] = 0
 
-		if (argkey is not None) and (proc not in postproc_args):
+		if (proc not in postproc_args) and (argkey is not None):
 			postproc_args[proc] = redishash.getkey(argkey)
 			postproc_argindices[proc] = 0
 			if postproc_args[proc] is None:
