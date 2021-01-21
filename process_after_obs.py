@@ -11,10 +11,10 @@ import argparse
 import importlib
 import redishash
 
-#from Hashpipe import hashpipe_aux
-import sys
-sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
-import hashpipe_aux
+from HpguppiMon import hashpipe_aux
+# import sys
+# sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
+# import hashpipe_aux
 
 def import_postproc_module(modulename):
 	if modulename not in globals(): #modulename not in sys.modules:
