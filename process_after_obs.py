@@ -106,9 +106,9 @@ while(True):
 
 	postproc_inputs = {}
 	postproc_lastinput = {}
-	postproc_inputindex = {}
+	postproc_inputindices = {}
 	postproc_args = {}
-	postproc_argindex = {}
+	postproc_argindices = {}
 	postproc_outputs = {}
 	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir())]
 
@@ -126,11 +126,11 @@ while(True):
 			print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, PROC_INP_KEY))
 			break
 		postproc_inputs[proc] = postproc_inputs[proc].split(',')
-		postproc_inputindex[proc] = 0
+		postproc_inputindices[proc] = 0
 
 		if argkey is not None:
 			postproc_args[proc] = redishash.getkey(argkey)
-			postproc_argindex[proc] = 0
+			postproc_argindices[proc] = 0
 			if postproc_args[proc] is None:
 				print('Post-Process {}: no args key found \'{}\'.'.format(proc, PROC_ARG_KEY))
 				postproc_args[proc] = [None]
@@ -138,37 +138,37 @@ while(True):
 				postproc_args[proc] = postproc_args[proc].split(',')
 		else:
 			postproc_args[proc] = [None]
-			postproc_argindex[proc] = 0
+			postproc_argindices[proc] = 0
 
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
 
-		postproc_inputkeywords = postproc_inputs[proc][postproc_inputindex[proc]]
+		postproc_inputkeywords = postproc_inputs[proc][postproc_inputindices[proc]]
 		postproc_lastinput[proc] = parse_input_keywords(postproc_inputkeywords, postproc_outputs, postproc_lastinput)
 		if postproc_lastinput[proc] is False:
 			break
 
 		postproc_outputs[proc] = globals()[proc].run(
-																								postproc_args[proc][postproc_argindex[proc]],
+																								postproc_args[proc][postproc_argindices[proc]],
 																								postproc_lastinput[proc]
 																								)
 
-		postproc_inputindex[proc] += 1
-		if postproc_inputindex[proc] >= len(postproc_inputs[proc]):
-			postproc_inputindex[proc] = 0
-			postproc_argindex[proc] += 1
+		postproc_inputindices[proc] += 1
+		if postproc_inputindices[proc] >= len(postproc_inputs[proc]):
+			postproc_inputindices[proc] = 0
+			postproc_argindices[proc] += 1
 
 		if procindex+1 < len(postprocs):
 			print('\nNext process')
 
 			procindex += 1
 			proc = postprocs[procindex]
-			postproc_inputindex[proc] = 0
-			postproc_argindex[proc] = 0
+			postproc_inputindices[proc] = 0
+			postproc_argindices[proc] = 0
 		else:
 			print('\nRewinding after '+proc)
 			while (procindex >= 0
-					and postproc_argindex[proc] >= len(postproc_args[proc]) ):
-				print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindex[proc], len(postproc_inputs[proc]), postproc_argindex[proc], len(postproc_args[proc])))
+					and postproc_argindices[proc] >= len(postproc_args[proc]) ):
+				print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindices[proc], len(postproc_inputs[proc]), postproc_argindices[proc], len(postproc_args[proc])))
 				procindex -= 1
 				proc = postprocs[procindex]
 
@@ -176,5 +176,5 @@ while(True):
 			if procindex < 0:
 				print('\ndone')
 				break
-			print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindex[proc], len(postproc_inputs[proc]), postproc_argindex[proc], len(postproc_args[proc])))
+			print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindices[proc], len(postproc_inputs[proc]), postproc_argindices[proc], len(postproc_args[proc])))
 			print('\nRewound to '+postprocs[procindex])
