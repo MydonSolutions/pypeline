@@ -43,26 +43,7 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 			print('No outut for {}, probably it has not been run yet. Bailing.'.format(keyword))
 			return False
 	
-	print(ret)
 	return ret
-
-
-# def check_and_revive_hashpipe():
-# 	if not block_until_pulse_change(5, silent=True):
-# 		print('Hashpipe seems dead. Restarting.')
-
-# 		obs_broke += 1
-# 		kill_hashpipe_relevant()
-# 		clear_shared_memory()
-# 		time.sleep(1)
-# 		start_hashpipe('ens6d1')
-# 		if not block_until_pulse_change(20):
-# 				print('Failed to restart Hashpipe. Exiting.')
-# 				obs_fail = True
-# 				break
-# 		hashpipe_start = time.time()
-# 		time.sleep(5)
-# 		block_until_obsinfo_valid()
 
 parser = argparse.ArgumentParser(description='Monitors the observations of an Hpguppi_daq instance '
                                              'starting rawspec and then turbo_seti after each observation.',
@@ -74,36 +55,28 @@ args = parser.parse_args()
 
 redishash = postproc_aux.HashpipeRedis(socket.gethostname(), args.instance)
 
-# redishash.setkey('PPRWSARG=-f 1 -t 1\nPPTBSARG=-g y -c XX -p YY')
-# print(redishash.getkey('PPRWSARG'))
-# print(redishash.getkey('PPTBSARG'))
-
 instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
-# print('\n######Ensuring Hashpipe Redis Gateway#####\n')
-# start_redis_gateway(instance)
+
 time.sleep(1)
 
-
-# block_until_obsinfo_valid(instance)
-# print('OBSINFO is %s.                                    '%(hashpipe_aux.get_hashpipe_key_value_str('OBSINFO')))
-
-# subprocess.run(['/home/sonata/src/observing_campaign/start_record_in_x.py', '-H', instance, '-i', '5', '-n', '10'])
-
 while(True):
+	# Wait until a recording starts
 	redishash.setkey('PPSTATUS=WAITING')
 	print('\nWaiting while DAQSTATE != recording')
 	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) != 'recording'):
 			print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(0.25)
+	# Wait until the recording ends
 	print('\nWaiting while DAQSTATE == recording')
 	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) == 'recording'):
 			print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(1)
 
 	postprocs = redishash.getkey('POSTPROC').split(',')
-	print(postprocs)
+	print('Post Processes:\n\t', postprocs)
 
+	# Reset dictionaries for the post-process run
 	postproc_inputs = {}
 	postproc_lastinput = {}
 	postproc_inputindices = {}
@@ -120,6 +93,8 @@ while(True):
 
 		inpkey = globals()[proc].PROC_INP_KEY
 		argkey = globals()[proc].PROC_ARG_KEY
+
+		# Load INP key's value for the process if applicable
 		if (proc not in postproc_inputs) and (inpkey is not None):
 			postproc_inputs[proc] = redishash.getkey(inpkey) if inpkey is not None else None
 			if postproc_inputs[proc] is None:
@@ -131,7 +106,7 @@ while(True):
 			postproc_inputs[proc] = [None]
 			postproc_inputindices[proc] = 0
 
-
+		# Load ARG key's value for the process if applicable
 		if (proc not in postproc_args) and (argkey is not None):
 			postproc_args[proc] = redishash.getkey(argkey)
 			postproc_argindices[proc] = 0
@@ -144,23 +119,29 @@ while(True):
 			postproc_args[proc] = [None]
 			postproc_argindices[proc] = 0
 
+		# Set status
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
 
+		# Parse input's keywords afresh each time
 		postproc_inputkeywords = postproc_inputs[proc][postproc_inputindices[proc]]
 		postproc_lastinput[proc] = parse_input_keywords(postproc_inputkeywords, postproc_outputs, postproc_lastinput)
 		if postproc_lastinput[proc] is False:
 			break
 
+		# Run the process
+		# TODO wrap in try..except and remove module on exception so it is reloaded
 		postproc_outputs[proc] = globals()[proc].run(
 																								postproc_args[proc][postproc_argindices[proc]],
 																								postproc_lastinput[proc]
 																								)
 
+		# Increment through inputs, overflow increment through arguments
 		postproc_inputindices[proc] += 1
 		if postproc_inputindices[proc] >= len(postproc_inputs[proc]):
 			postproc_inputindices[proc] = 0
 			postproc_argindices[proc] += 1
 
+		# Proceed to next process or...
 		if procindex+1 < len(postprocs):
 			print('\nNext process')
 
@@ -168,7 +149,7 @@ while(True):
 			proc = postprocs[procindex]
 			postproc_inputindices[proc] = 0
 			postproc_argindices[proc] = 0
-		else:
+		else: # ... rewind to the closest next novel process (argumentindices indicate exhausted permutations)
 			print('\nRewinding after '+proc)
 			while (procindex >= 0
 					and postproc_argindices[proc] >= len(postproc_args[proc]) ):
@@ -176,9 +157,9 @@ while(True):
 				procindex -= 1
 				proc = postprocs[procindex]
 
-
+			# Break if there are no novel process argument-input permutations
 			if procindex < 0:
-				print('\ndone')
+				print('\nPost Processing Done!')
 				break
-			print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindices[proc], len(postproc_inputs[proc]), postproc_argindices[proc], len(postproc_args[proc])))
-			print('\nRewound to '+postprocs[procindex])
+			print('{}: inputindex {}/{}, argindex {}/{}'.format(proc, postproc_inputindices[proc], len(postproc_inputs[proc]), postproc_argindices[proc], len(postproc_args[proc])))
+			print('\nRewound to {}\n'.format(postprocs[procindex]))
