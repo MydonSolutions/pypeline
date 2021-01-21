@@ -28,6 +28,25 @@ def block_until_obsinfo_valid(instance=0):
 		print('OBSINFO is INVALID, will await VALID...', end='\r')
 		time.sleep(1)
 
+def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
+	ret = []
+	for keyword in input_keywords.split(' '):
+		if keyword in postproc_outputs:
+			ret.append(*postproc_outputs[keyword])
+		elif keyword[0] == '^':
+			if keyword[1:] in postproc_lastinput:
+				ret.append(*postproc_lastinput[keyword[1:]])
+			else:
+				print('No lastinput for {}, probably it has not been run yet. Bailing.'.format(keyword[1:]))
+				return False
+		else:
+			print('No outut for {}, probably it has not been run yet. Bailing.'.format(keyword))
+			return False
+	
+	print(ret)
+	return ret
+
+
 # def check_and_revive_hashpipe():
 # 	if not block_until_pulse_change(5, silent=True):
 # 		print('Hashpipe seems dead. Restarting.')
@@ -86,6 +105,7 @@ while(True):
 	print(postprocs)
 
 	postproc_inputs = {}
+	postproc_lastinput = {}
 	postproc_inputindex = {}
 	postproc_args = {}
 	postproc_argindex = {}
@@ -96,19 +116,40 @@ while(True):
 
 	while True:
 		proc = postprocs[procindex]
-		if import_postproc_module(proc):
-			postproc_inputs[proc] = redishash.getkey(globals()[proc].PROC_INP_KEY).split(',')
-			postproc_inputindex[proc] = 0
-			postproc_args[proc] = redishash.getkey(globals()[proc].PROC_ARG_KEY).split(',')
+		import_postproc_module(proc)
+
+		inpkey = globals()[proc].PROC_INP_KEY
+		argkey = globals()[proc].PROC_ARG_KEY
+
+		postproc_inputs[proc] = redishash.getkey(inpkey) if inpkey is not None else None
+		if postproc_inputs[proc] is None and inpkey is not None:
+			print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, PROC_INP_KEY))
+			break
+		postproc_inputs[proc] = postproc_inputs[proc].split(',')
+		postproc_inputindex[proc] = 0
+
+		if argkey is not None:
+			postproc_args[proc] = redishash.getkey(argkey)
+			postproc_argindex[proc] = 0
+			if postproc_args[proc] is None:
+				print('Post-Process {}: no args key found \'{}\'.'.format(proc, PROC_ARG_KEY))
+				postproc_args[proc] = [None]
+			else:
+				postproc_args[proc] = postproc_args[proc].split(',')
+		else:
+			postproc_args[proc] = [None]
 			postproc_argindex[proc] = 0
 
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
 
-		procinput = postproc_outputs[postproc_inputs[proc][postproc_inputindex[proc]]]
+		postproc_inputkeywords = postproc_inputs[proc][postproc_inputindex[proc]]
+		postproc_lastinput[proc] = parse_input_keywords(postproc_inputkeywords, postproc_outputs, postproc_lastinput)
+		if postproc_lastinput[proc] is False:
+			break
 
 		postproc_outputs[proc] = globals()[proc].run(
 																								postproc_args[proc][postproc_argindex[proc]],
-																								procinput
+																								postproc_lastinput[proc]
 																								)
 
 		postproc_inputindex[proc] += 1
@@ -137,17 +178,3 @@ while(True):
 				break
 			print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindex[proc], len(postproc_inputs[proc]), postproc_argindex[proc], len(postproc_args[proc])))
 			print('\nRewound to '+postprocs[procindex])
-			
-# redishash.setkey('PPSTATUS=PNGOUTPUT')
-# pngcmd = ['python', '/home/sonata/src/observing_campaign/pipeline/run_find_plot_events.py', turbo_output, rawspec_outputstem]
-# print(pngcmd)
-# subprocess.run(pngcmd)
-
-# rawfiles = glob.glob(rawstempath+'*.raw')
-# redishash.setkey('PPSTATUS=REMOVERAW')
-# for rawfile in rawfiles:
-# 	removecmd = ['rm', rawfile]
-# 	print(removecmd)
-# 	os.remove(rawfile)
-# 	# subprocess.run(removecmd)
-
