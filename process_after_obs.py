@@ -73,17 +73,18 @@ while(True):
 			print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(1)
 
-	postprocs = redishash.getkey('POSTPROC').split(',')
+	postprocs = redishash.getkey('POSTPROC').split(' ')
 	print('Post Processes:\n\t', postprocs)
 
 	# Reset dictionaries for the post-process run
+	postproc_envvar = {}
 	postproc_inputs = {}
-	postproc_lastinput = {}
 	postproc_inputindices = {}
+	postproc_lastinput = {}
 	postproc_args = {}
 	postproc_argindices = {}
 	postproc_outputs = {}
-	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir())]
+	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
 
 	procindex = 0
 
@@ -91,6 +92,7 @@ while(True):
 		proc = postprocs[procindex]
 		import_postproc_module(proc)
 
+		envkey = globals()[proc].PROC_ENV_KEY
 		inpkey = globals()[proc].PROC_INP_KEY
 		argkey = globals()[proc].PROC_ARG_KEY
 
@@ -119,6 +121,15 @@ while(True):
 			postproc_args[proc] = [None]
 			postproc_argindices[proc] = 0
 
+		# Load PRE key's value for the process if applicable
+		if (proc not in postproc_envvar) and (envkey is not None):
+			postproc_envvar[proc] = redishash.getkey(envkey)
+			if postproc_envvar[proc] is None:
+				print('Post-Process {}: no prefix key found \'{}\'.'.format(proc, envkey))
+				postproc_envvar[proc] = None
+		elif argkey is None:
+			postproc_envvar[proc] = None
+
 		# Set status
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
 
@@ -132,7 +143,8 @@ while(True):
 		# TODO wrap in try..except and remove module on exception so it is reloaded
 		postproc_outputs[proc] = globals()[proc].run(
 																								postproc_args[proc][postproc_argindices[proc]],
-																								postproc_lastinput[proc]
+																								postproc_lastinput[proc],
+																								postproc_envvar[proc]
 																								)
 
 		# Increment through inputs, overflow increment through arguments

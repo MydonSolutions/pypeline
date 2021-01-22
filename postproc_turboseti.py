@@ -1,11 +1,12 @@
 import subprocess
 import os
 
+PROC_ENV_KEY = 'PPTBSENV'
 PROC_ARG_KEY = 'PPTBSARG'
 PROC_INP_KEY = 'PPTBSINP'
 PROC_NAME = 'turboSETI'
 
-def run(argstr, inputs):
+def run(argstr, inputs, envvar):
 	if len(inputs) == 0:
 		print('Rawspec requires a single input path.')
 		return []
@@ -16,8 +17,17 @@ def run(argstr, inputs):
 
 	turboargs = argstr.split(' ')
 	cmd = ['/home/sonata/miniconda3/bin/turboSETI', *turboargs, inputpath]
+
+	env = os.environ.copy()
+	if envvar is not None:
+		for variablevalues in envvar.split(' '):
+			print(variablevalues)
+			if '=' in variablevalues:
+				pair = variablevalues.split('=')
+				env[pair[0]] = pair[1]
+	
 	print(' '.join(cmd))
-	subprocess.run(cmd)
+	subprocess.run(cmd, env=env)
 	
 	turbo_output = inputpath
 	if '-o' in turboargs:
