@@ -127,7 +127,7 @@ while(True):
 			if postproc_envvar[proc] is None:
 				print('Post-Process {}: no prefix key found \'{}\'.'.format(proc, envkey))
 				postproc_envvar[proc] = None
-		elif argkey is None:
+		elif envkey is None:
 			postproc_envvar[proc] = None
 
 		# Set status
