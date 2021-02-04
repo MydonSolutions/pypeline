@@ -16,6 +16,13 @@ def run(argstr, inputs, envvar, instanceid):
 	inputpath = inputs[0]
 
 	turboargs = argstr.split(' ')
+	turboargs.append('-o')
+	turboargs.append('/mnt/buf{}/turboseti/{}/'.format(instanceid, os.path.basename(inputpath).split('.')[0]))
+
+	cmd = ['mkdir', '-p', turboargs[-1]]
+	print(' '.join(cmd))
+	subprocess.run(cmd)
+
 	cmd = ['/home/sonata/miniconda3/bin/turboSETI', *turboargs, inputpath]
 
 	env = os.environ.copy()

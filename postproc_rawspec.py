@@ -16,6 +16,13 @@ def run(argstr, inputs, envvar, instanceid):
 	inputpath = inputs[0]
 	
 	rawargs = argstr.split(' ')
+	rawargs.append('-d')
+	rawargs.append('/mnt/buf{}/rawspec/{}/'.format(instanceid, inputpath.split('/')[-1]))
+	
+	cmd = ['mkdir', '-p', rawargs[-1]]
+	print(' '.join(cmd))
+	subprocess.run(cmd)
+
 	cmd = ['/opt/mnt/bin/rawspec', *rawargs, inputpath]
 
 	env = os.environ.copy()
