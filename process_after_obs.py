@@ -144,7 +144,8 @@ while(True):
 		postproc_outputs[proc] = globals()[proc].run(
 																								postproc_args[proc][postproc_argindices[proc]],
 																								postproc_lastinput[proc],
-																								postproc_envvar[proc]
+																								postproc_envvar[proc],
+																								instance
 																								)
 
 		# Increment through inputs, overflow increment through arguments

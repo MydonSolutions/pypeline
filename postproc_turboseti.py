@@ -6,7 +6,7 @@ PROC_ARG_KEY = 'PPTBSARG'
 PROC_INP_KEY = 'PPTBSINP'
 PROC_NAME = 'turboSETI'
 
-def run(argstr, inputs, envvar):
+def run(argstr, inputs, envvar, instanceid):
 	if len(inputs) == 0:
 		print('Rawspec requires a single input path.')
 		return []

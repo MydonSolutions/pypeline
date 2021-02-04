@@ -6,7 +6,7 @@ PROC_ARG_KEY = 'PPRWSARG'
 PROC_INP_KEY = 'PPRWSINP'
 PROC_NAME = 'RAWSPEC'
 
-def run(argstr, inputs, envvar):
+def run(argstr, inputs, envvar, instanceid):
 	if len(inputs) == 0:
 		print('Rawspec requires a single input path.')
 		return []
