@@ -33,14 +33,14 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 	for keyword in input_keywords.split(' '):
 		if keyword in postproc_outputs:
 			ret.append(*postproc_outputs[keyword])
-		elif keyword[0] == '^':
-			if keyword[1:] in postproc_lastinput:
+		elif keyword[0] in ['^', '&']:
+			if keyword[0] == '^' and keyword[1:] in postproc_lastinput:
 				ret.append(*postproc_lastinput[keyword[1:]])
-			else:
-				print('No lastinput for {}, probably it has not been run yet. Bailing.'.format(keyword[1:]))
-				return False
+			elif keyword[0] == '&':
+				print('Detected verbatim input \"{}\"'.format(keyword[1:]))
+				ret.append(keyword[1:])
 		else:
-			print('No outut for {}, probably it has not been run yet. Bailing.'.format(keyword))
+			print('No output for {}, probably it has not been run yet. Bailing.'.format(keyword))
 			return False
 	
 	return ret
