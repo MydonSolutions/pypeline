@@ -45,6 +45,25 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 	
 	return ret
 
+def fetch_proc_key_value(key, proc, value_dict, index_dict, redishash, value_delimiter):
+	if (proc not in value_dict) and (key is not None):
+		value_dict[proc] = redishash.getkey(key)
+		if value_dict[proc] is None:
+			print('Post-Process {}: missing key \'{}\', bailing.'.format(proc, key))
+			return False
+		if value_delimiter is not None:
+			value_dict[proc] = value_dict[proc].split(value_delimiter)
+		if index_dict is not None:
+			index_dict[proc] = 0
+	elif key is None:
+		value_dict[proc] = [None] if value_delimiter is not None else None
+		if index_dict is not None:
+			index_dict[proc] = 0
+	return True
+
+def print_proc_dict_progress(proc, inp_dict, inpidx_dict, arg_dict, argidx_dict):
+	print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, inpidx_dict[proc], len(inp_dict[proc]), argidx_dict[proc], len(arg_dict[proc])))
+
 parser = argparse.ArgumentParser(description='Monitors the observations of an Hpguppi_daq instance '
                                              'starting rawspec and then turbo_seti after each observation.',
              formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -96,39 +115,13 @@ while(True):
 		inpkey = globals()[proc].PROC_INP_KEY
 		argkey = globals()[proc].PROC_ARG_KEY
 
-		# Load INP key's value for the process if applicable
-		if (proc not in postproc_inputs) and (inpkey is not None):
-			postproc_inputs[proc] = redishash.getkey(inpkey) if inpkey is not None else None
-			if postproc_inputs[proc] is None:
-				print('Post-Process {}: missing input key \'{}\', bailing.'.format(proc, inpkey))
-				break
-			postproc_inputs[proc] = postproc_inputs[proc].split(',')
-			postproc_inputindices[proc] = 0
-		elif inpkey is None:
-			postproc_inputs[proc] = [None]
-			postproc_inputindices[proc] = 0
-
-		# Load ARG key's value for the process if applicable
-		if (proc not in postproc_args) and (argkey is not None):
-			postproc_args[proc] = redishash.getkey(argkey)
-			postproc_argindices[proc] = 0
-			if postproc_args[proc] is None:
-				print('Post-Process {}: no args key found \'{}\'.'.format(proc, argkey))
-				postproc_args[proc] = [None]
-			else:
-				postproc_args[proc] = postproc_args[proc].split(',')
-		elif argkey is None:
-			postproc_args[proc] = [None]
-			postproc_argindices[proc] = 0
-
-		# Load PRE key's value for the process if applicable
-		if (proc not in postproc_envvar) and (envkey is not None):
-			postproc_envvar[proc] = redishash.getkey(envkey)
-			if postproc_envvar[proc] is None:
-				print('Post-Process {}: no prefix key found \'{}\'.'.format(proc, envkey))
-				postproc_envvar[proc] = None
-		elif envkey is None:
-			postproc_envvar[proc] = None
+		# Load INP, ARG and ENV key's value for the process if applicable
+		if not fetch_proc_key_value(inpkey, proc, postproc_inputs, postproc_inputindices, redishash, ','):
+			break
+		if not fetch_proc_key_value(argkey, proc, postproc_args, postproc_argindices, redishash, ','):
+			break
+		if not fetch_proc_key_value(envkey, proc, postproc_envvar, None, redishash, None):
+			break
 
 		# Set status
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
@@ -166,7 +159,7 @@ while(True):
 			print('\nRewinding after '+proc)
 			while (procindex >= 0
 					and postproc_argindices[proc] >= len(postproc_args[proc]) ):
-				print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, postproc_inputindices[proc], len(postproc_inputs[proc]), postproc_argindices[proc], len(postproc_args[proc])))
+				print_proc_dict_progress(proc, postproc_inputs, postproc_inputindices, postproc_args, postproc_argindices)
 				procindex -= 1
 				proc = postprocs[procindex]
 
@@ -174,5 +167,5 @@ while(True):
 			if procindex < 0:
 				print('\nPost Processing Done!')
 				break
-			print('{}: inputindex {}/{}, argindex {}/{}'.format(proc, postproc_inputindices[proc], len(postproc_inputs[proc]), postproc_argindices[proc], len(postproc_args[proc])))
+			print_proc_dict_progress(proc, postproc_inputs, postproc_inputindices, postproc_args, postproc_argindices)
 			print('\nRewound to {}\n'.format(postprocs[procindex]))
