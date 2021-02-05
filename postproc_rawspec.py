@@ -1,5 +1,6 @@
 import subprocess
 import os
+import glob
 
 PROC_ENV_KEY = 'PPRWSENV'
 PROC_ARG_KEY = 'PPRWSARG'
@@ -39,6 +40,8 @@ def run(argstr, inputs, envvar, instanceid):
 	rawspec_outputstem = inputpath
 	if '-d' in rawargs:
 		rawspec_outputstem = os.path.join(rawargs[rawargs.index('-d')+1], os.path.basename(inputpath))
-	rawspec_outputs = [rawspec_outputstem + '-ant000.rawspec.0000.fil']
+	
+	rawspec_outputs = glob.glob(rawspec_outputstem+'*.fil')
+	print('rawspec_outputs:', rawspec_outputs)
 
 	return rawspec_outputs
