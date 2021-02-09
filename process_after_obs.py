@@ -28,6 +28,11 @@ def block_until_obsinfo_valid(instance=0):
 		print('OBSINFO is INVALID, will await VALID...', end='\r')
 		time.sleep(1)
 
+def replace_instance_keywords(keyword_dict, string):
+	for keyword in keyword_dict.keys():
+		string = string.replace('${}$'.format(keyword), keyword_dict[keyword])
+	return string
+
 def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 	ret = []
 	for keyword in input_keywords.split(' '):
@@ -76,6 +81,10 @@ redishash = redishash.RedisHash(socket.gethostname(), args.instance)
 
 instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
+
+instance_keywords = {}
+instance_keywords['instance'] = str(instance)
+instance_keywords['hostname'] = socket.gethostname()
 
 time.sleep(1)
 
@@ -132,13 +141,17 @@ while(True):
 		if postproc_lastinput[proc] is False:
 			break
 
+		arg = postproc_args[proc][postproc_argindices[proc]]
+		inp = postproc_lastinput[proc]
+		env = replace_instance_keywords(instance_keywords, postproc_envvar[proc]) if postproc_envvar[proc] is not None else None
+
 		# Run the process
 		# TODO wrap in try..except and remove module on exception so it is reloaded
 		postproc_outputs[proc] = globals()[proc].run(
-																								postproc_args[proc][postproc_argindices[proc]],
-																								postproc_lastinput[proc],
-																								postproc_envvar[proc],
-																								instance
+																								arg,
+																								inp,
+																								env,
+																								instance_keywords
 																								)
 
 		# Increment through inputs, overflow increment through arguments

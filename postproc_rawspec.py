@@ -7,7 +7,7 @@ PROC_ARG_KEY = 'PPRWSARG'
 PROC_INP_KEY = 'PPRWSINP'
 PROC_NAME = 'RAWSPEC'
 
-def run(argstr, inputs, envvar, instanceid):
+def run(argstr, inputs, envvar, instance_keywords):
 	if len(inputs) == 0:
 		print('Rawspec requires a single input path.')
 		return []
@@ -18,7 +18,7 @@ def run(argstr, inputs, envvar, instanceid):
 	
 	rawargs = argstr.split(' ')
 	rawargs.append('-d')
-	rawargs.append('/mnt/buf{}/rawspec/{}/'.format(instanceid, inputpath.split('/')[-1]))
+	rawargs.append('/mnt/buf{}/rawspec/{}/'.format(instance_keywords['instance'], inputpath.split('/')[-1]))
 	
 	cmd = ['mkdir', '-p', rawargs[-1]]
 	print(' '.join(cmd))
@@ -32,6 +32,7 @@ def run(argstr, inputs, envvar, instanceid):
 			print(variablevalues)
 			if '=' in variablevalues:
 				pair = variablevalues.split('=')
+				print('Environment variable-value pair:', pair)
 				env[pair[0]] = pair[1]
 	
 	print(' '.join(cmd))

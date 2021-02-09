@@ -6,7 +6,7 @@ PROC_ARG_KEY = 'PPTBSARG'
 PROC_INP_KEY = 'PPTBSINP'
 PROC_NAME = 'turboSETI'
 
-def run(argstr, inputs, envvar, instanceid):
+def run(argstr, inputs, envvar, instance_keywords):
 	if len(inputs) == 0:
 		print('Rawspec requires a single input path.')
 		return []
@@ -17,7 +17,7 @@ def run(argstr, inputs, envvar, instanceid):
 
 	turboargs = argstr.split(' ')
 	turboargs.append('-o')
-	turboargs.append('/mnt/buf{}/turboseti/{}/'.format(instanceid, os.path.basename(inputpath).split('.')[0]))
+	turboargs.append('/mnt/buf{}/turboseti/{}/'.format(instance_keywords['instance'], os.path.basename(inputpath).split('.')[0]))
 
 	cmd = ['mkdir', '-p', turboargs[-1]]
 	print(' '.join(cmd))
