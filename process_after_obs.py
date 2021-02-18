@@ -9,16 +9,44 @@ import socket
 from string import Template
 import argparse
 import importlib
-import redishash
 
 from HpguppiMon import hashpipe_aux
+
+#####################################################################
+from string import Template
+import redis
+
+class RedisHash:
+	def __init__(self, hostname, instance, redishost='redishost'):
+		self.redis_obj = redis.Redis(redishost)
+
+		REDISSETGW = Template('hashpipe://${host}/${inst}/set')
+		self.set_chan = REDISSETGW.substitute(host=hostname, inst=instance)
+
+		REDISGETGW = Template('hashpipe://${host}/${inst}/status')
+		self.get_chan = REDISGETGW.substitute(host=hostname, inst=instance)
+		print(self.set_chan)
+		print(self.get_chan)
+
+	def setkey(self, keyvaluestr):
+		self.redis_obj.publish(self.set_chan, keyvaluestr)
+
+	def getkey(self, keystr):
+		ret = self.redis_obj.hget(self.get_chan, keystr)
+		if ret is None:
+			return None
+		else:
+			return ret.decode()
+#####################################################################
+
+post_proc_module_dir = '/home/sonata/src/observing_campaign/pypeline/'
 # import sys
 # sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
 # import hashpipe_aux
 
 def import_postproc_module(modulename):
 	if modulename not in globals(): #modulename not in sys.modules:
-		globals()[modulename] = importlib.import_module('postproc_'+modulename)
+		globals()[modulename] = importlib.import_module(post_proc_module_dir+'postproc_'+modulename)
 		print('Imported the {} module!'.format(modulename))
 		return True
 	return False
@@ -77,7 +105,7 @@ parser.add_argument('instance', type=int,
                     help='The instance ID of the hashpipe.')
 args = parser.parse_args()
 
-redishash = redishash.RedisHash(socket.gethostname(), args.instance)
+redishash = RedisHash(socket.gethostname(), args.instance)
 
 instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
