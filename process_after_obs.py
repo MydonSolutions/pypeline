@@ -39,14 +39,15 @@ class RedisHash:
 			return ret.decode()
 #####################################################################
 
-post_proc_module_dir = '/home/sonata/src/observing_campaign/pypeline/'
-# import sys
+import sys
+sys.path.insert(0, '/home/sonata/src/observing_campaign/pypeline/')
+
 # sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
 # import hashpipe_aux
 
 def import_postproc_module(modulename):
 	if modulename not in globals(): #modulename not in sys.modules:
-		globals()[modulename] = importlib.import_module(post_proc_module_dir+'postproc_'+modulename)
+		globals()[modulename] = importlib.import_module('postproc_'+modulename)
 		print('Imported the {} module!'.format(modulename))
 		return True
 	return False
@@ -140,7 +141,7 @@ while(True):
 	postproc_args = {}
 	postproc_argindices = {}
 	postproc_outputs = {}
-	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
+	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_sthem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
 
 	procindex = 0
 
