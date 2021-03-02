@@ -130,6 +130,9 @@ while(True):
 			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(1)
 
+	postproc_str = redishash.getkey('POSTPROC')
+	if 'skip' in postproc_str:
+		continue
 	postprocs = redishash.getkey('POSTPROC').split(' ')
 	print('Post Processes:\n\t', postprocs)
 
