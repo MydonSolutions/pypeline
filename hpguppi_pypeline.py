@@ -122,12 +122,12 @@ while(True):
 	redishash.setkey('PPSTATUS=WAITING')
 	print('\nWaiting while DAQSTATE != recording')
 	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) != 'recording'):
-			print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
+			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(0.25)
 	# Wait until the recording ends
 	print('\nWaiting while DAQSTATE == recording')
 	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) == 'recording'):
-			print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
+			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(1)
 
 	postprocs = redishash.getkey('POSTPROC').split(' ')
@@ -141,7 +141,7 @@ while(True):
 	postproc_args = {}
 	postproc_argindices = {}
 	postproc_outputs = {}
-	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_sthem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
+	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
 
 	procindex = 0
 
