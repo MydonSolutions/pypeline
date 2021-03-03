@@ -16,9 +16,9 @@ def run(argstr, inputs, envvar):
 	inputpath = inputs[0]
 
 	turboargs = argstr.split(' ')
-	if '-o' in rawargs:
-		rawargs[rawargs.index('-o')+1]
-		cmd = ['mkdir', '-p', rawargs[-1]]
+	if '-o' in turboargs:
+		turboargs[turboargs.index('-o')+1]
+		cmd = ['mkdir', '-p', turboargs[-1]]
 		print(' '.join(cmd))
 		subprocess.run(cmd)
 
