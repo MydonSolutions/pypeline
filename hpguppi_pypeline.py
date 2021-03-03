@@ -40,7 +40,7 @@ class RedisHash:
 #####################################################################
 
 import sys
-sys.path.insert(0, '/home/sonata/src/observing_campaign/pypeline/')
+sys.path.insert(0, '/home/sonata/dev/pypeline/')
 
 # sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
 # import hashpipe_aux
@@ -62,24 +62,50 @@ def replace_instance_keywords(keyword_dict, string):
 		string = string.replace('${}$'.format(keyword), keyword_dict[keyword])
 	return string
 
-def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
+def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 	ret = []
-	for keyword in input_keywords.split(' '):
-		if keyword in postproc_outputs:
-			if len(postproc_outputs[keyword]) != 1:
-				print('The number of outputs for {} is {} != 1.'.format(keyword, len(postproc_outputs[keyword])))
+	input_values = {}
+	value_indices = {}
+
+	# Gather values for each
+	input_template_symbols = input_template.split(' ')
+	for symbol in input_template_symbols:
+		if symbol in postproc_outputs:
+			if len(postproc_outputs[symbol]) == 0:
+				print('Module {} produced zero outputs.'.format(symbol))
 				return False
-			ret.append(*postproc_outputs[keyword])
-		elif keyword[0] in ['^', '&']:
-			if keyword[0] == '^' and keyword[1:] in postproc_lastinput:
-				ret.append(*postproc_lastinput[keyword[1:]])
-			elif keyword[0] == '&':
-				print('Detected verbatim input \"{}\"'.format(keyword[1:]))
-				ret.append(keyword[1:])
+			input_values[symbol] = postproc_outputs[symbol]
+		elif symbol[0] in ['^', '&']:
+			if symbol[0] == '^' and symbol[1:] in postproc_lastinput:
+				input_values[symbol] = postproc_lastinput[symbol[1:]]
+			elif symbol[0] == '&':
+				print('Detected verbatim input \"{}\"'.format(symbol[1:]))
+				input_values[symbol] = [symbol[1:]]
 		else:
-			print('No output for {}, probably it has not been run yet.'.format(keyword))
+			print('No replacement for {} within INP key, probably it has not been run yet.'.format(keyword))
 			return False
-	
+		
+		value_indices[symbol] = 0
+
+	input_template_symbols_rev = input_template_symbols[::-1]
+
+	fully_permutated = False
+
+	while not fully_permutated:
+		inp = []
+		for symbol in input_template_symbols:
+			inp.append(input_values[symbol][value_indices[symbol]])
+		ret.append(inp)
+
+		for i, symbol in enumerate(input_template_symbols_rev):
+			value_indices[symbol] += 1
+			if value_indices[symbol] == len(input_values[symbol]):
+				value_indices[symbol] = 0
+				if i+1 == len(input_template_symbols_rev):
+					fully_permutated = True
+			else:
+				break
+
 	return ret
 
 def fetch_proc_key_value(key, proc, value_dict, index_dict, redishash, value_delimiter):
@@ -98,8 +124,17 @@ def fetch_proc_key_value(key, proc, value_dict, index_dict, redishash, value_del
 			index_dict[proc] = 0
 	return True
 
-def print_proc_dict_progress(proc, inp_dict, inpidx_dict, arg_dict, argidx_dict):
-	print('{}: inputindex {}/{}, argindex {}/{}\n'.format(proc, inpidx_dict[proc], len(inp_dict[proc]), argidx_dict[proc], len(arg_dict[proc])))
+def print_proc_dict_progress(proc, inp_tmp_dict, inp_tmpidx_dict, inp_dict, inpidx_dict, arg_dict, argidx_dict):
+	print('{}: input_templateindex {}/{}, inputindex {}/{}, argindex {}/{}\n'.format(
+		proc,
+		inp_tmpidx_dict[proc],
+		len(inp_tmp_dict[proc]),
+		inpidx_dict[proc],
+		len(inp_dict[proc]),
+		argidx_dict[proc],
+		len(arg_dict[proc])
+		)
+	)
 
 parser = argparse.ArgumentParser(description='Monitors the observations of an Hpguppi_daq instance '
                                              'starting rawspec and then turbo_seti after each observation.',
@@ -141,6 +176,8 @@ while(True):
 
 	# Reset dictionaries for the post-process run
 	postproc_envvar = {}
+	postproc_input_templates = {}
+	postproc_input_templateindices = {}
 	postproc_inputs = {}
 	postproc_inputindices = {}
 	postproc_lastinput = {}
@@ -162,24 +199,31 @@ while(True):
 		argkey = globals()[proc].PROC_ARG_KEY
 
 		# Load INP, ARG and ENV key's value for the process if applicable
-		if not fetch_proc_key_value(inpkey, proc, postproc_inputs, postproc_inputindices, redishash, ','):
+		if not fetch_proc_key_value(inpkey, proc, postproc_input_templates, postproc_input_templateindices, redishash, ','):
 			break
 		if not fetch_proc_key_value(argkey, proc, postproc_args, postproc_argindices, redishash, ','):
 			break
 		if not fetch_proc_key_value(envkey, proc, postproc_envvar, None, redishash, None):
 			break
 
+		if proc not in postproc_inputindices:
+			postproc_inputindices[proc] = 0
+
+		if postproc_inputindices[proc] == 0:
+			# Parse the input_template and create the input list from permutations
+			proc_input_template = postproc_input_templates[proc][postproc_input_templateindices[proc]]
+			postproc_inputs[proc] = parse_input_template(proc_input_template, postproc_outputs, postproc_lastinput)
+			# print(proc, 'inputs:', postproc_inputs[proc])
+
 		# Set status
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
 
-		# Parse input's keywords afresh each time
-		postproc_inputkeywords = postproc_inputs[proc][postproc_inputindices[proc]]
-		postproc_lastinput[proc] = parse_input_keywords(postproc_inputkeywords, postproc_outputs, postproc_lastinput)
-		if postproc_lastinput[proc] is False:
+		inp = postproc_inputs[proc][postproc_inputindices[proc]]
+		if inp is False:
 			print('Bailing...')
 			break
 
-		inp = postproc_lastinput[proc]
+		postproc_lastinput[proc] = inp
 
 		arg = postproc_args[proc][postproc_argindices[proc]]
 		arg = replace_instance_keywords(instance_keywords, arg) if arg is not None else None
@@ -199,7 +243,10 @@ while(True):
 		postproc_inputindices[proc] += 1
 		if postproc_inputindices[proc] >= len(postproc_inputs[proc]):
 			postproc_inputindices[proc] = 0
-			postproc_argindices[proc] += 1
+			postproc_input_templateindices[proc] += 1
+			if postproc_input_templateindices[proc] >= len(postproc_input_templates[proc]):
+				postproc_input_templateindices[proc] = 0
+				postproc_argindices[proc] += 1
 
 		# Proceed to next process or...
 		if procindex+1 < len(postprocs):
@@ -207,13 +254,18 @@ while(True):
 
 			procindex += 1
 			proc = postprocs[procindex]
+			postproc_input_templateindices[proc] = 0
 			postproc_inputindices[proc] = 0
 			postproc_argindices[proc] = 0
 		else: # ... rewind to the closest next novel process (argumentindices indicate exhausted permutations)
 			print('\nRewinding after '+proc)
 			while (procindex >= 0
 					and postproc_argindices[proc] >= len(postproc_args[proc]) ):
-				print_proc_dict_progress(proc, postproc_inputs, postproc_inputindices, postproc_args, postproc_argindices)
+				print_proc_dict_progress(proc,
+					postproc_input_templates, postproc_input_templateindices,
+					postproc_inputs, postproc_inputindices,
+					postproc_args, postproc_argindices
+				)
 				procindex -= 1
 				proc = postprocs[procindex]
 
@@ -221,5 +273,9 @@ while(True):
 			if procindex < 0:
 				print('\nPost Processing Done!')
 				break
-			print_proc_dict_progress(proc, postproc_inputs, postproc_inputindices, postproc_args, postproc_argindices)
+			print_proc_dict_progress(proc,
+				postproc_input_templates, postproc_input_templateindices,
+				postproc_inputs, postproc_inputindices,
+				postproc_args, postproc_argindices
+			)
 			print('\nRewound to {}\n'.format(postprocs[procindex]))
