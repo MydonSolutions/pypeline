@@ -7,7 +7,7 @@ PROC_ARG_KEY = None
 PROC_INP_KEY = 'PPRMINP'
 PROC_NAME = 'rm'
 
-def run(argstr, inputs, env, instance_keywords):
+def run(argstr, inputs, env):
 	if len(inputs) == 0:
 		print('rm requires a single path, and optionally filters for extensions.')
 		return []

@@ -6,7 +6,7 @@ PROC_ARG_KEY = 'PPTBSARG'
 PROC_INP_KEY = 'PPTBSINP'
 PROC_NAME = 'turboSETI'
 
-def run(argstr, inputs, envvar, instance_keywords):
+def run(argstr, inputs, envvar):
 	if len(inputs) == 0:
 		print('Rawspec requires a single input path.')
 		return []
@@ -16,12 +16,11 @@ def run(argstr, inputs, envvar, instance_keywords):
 	inputpath = inputs[0]
 
 	turboargs = argstr.split(' ')
-	turboargs.append('-o')
-	turboargs.append('/mnt/buf{}/turboseti/{}/'.format(instance_keywords['instance'], os.path.basename(inputpath).split('.')[0]))
-
-	cmd = ['mkdir', '-p', turboargs[-1]]
-	print(' '.join(cmd))
-	subprocess.run(cmd)
+	if '-o' in rawargs:
+		rawargs[rawargs.index('-o')+1]
+		cmd = ['mkdir', '-p', rawargs[-1]]
+		print(' '.join(cmd))
+		subprocess.run(cmd)
 
 	cmd = ['/home/sonata/miniconda3/bin/turboSETI', *turboargs, inputpath]
 

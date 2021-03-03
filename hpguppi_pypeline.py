@@ -145,6 +145,8 @@ while(True):
 	postproc_argindices = {}
 	postproc_outputs = {}
 	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
+	
+	instance_keywords['hpguppi_stem'] = os.path.basename(postproc_outputs['hpguppi'][0])
 
 	procindex = 0
 
@@ -173,17 +175,20 @@ while(True):
 		if postproc_lastinput[proc] is False:
 			break
 
-		arg = postproc_args[proc][postproc_argindices[proc]]
 		inp = postproc_lastinput[proc]
-		env = replace_instance_keywords(instance_keywords, postproc_envvar[proc]) if postproc_envvar[proc] is not None else None
+
+		arg = postproc_args[proc][postproc_argindices[proc]]
+		arg = replace_instance_keywords(instance_keywords, arg) if arg is not None else None
+
+		env = postproc_envvar[proc]
+		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
 		# Run the process
 		# TODO wrap in try..except and remove module on exception so it is reloaded
 		postproc_outputs[proc] = globals()[proc].run(
 																								arg,
 																								inp,
-																								env,
-																								instance_keywords
+																								env
 																								)
 
 		# Increment through inputs, overflow increment through arguments

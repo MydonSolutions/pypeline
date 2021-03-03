@@ -6,7 +6,7 @@ PROC_ARG_KEY = None
 PROC_INP_KEY = 'PPPLTINP'
 PROC_NAME = 'plotter'
 
-def run(argstr, inputs, envvar, instance_keywords):
+def run(argstr, inputs, envvar):
 	if len(inputs) < 2:
 		print('Plotter requires a two input paths, the turbo seti output and rawspec\'s output.')
 		return []
