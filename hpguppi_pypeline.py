@@ -115,8 +115,8 @@ instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
 
 instance_keywords = {}
-instance_keywords['instance'] = str(instance)
-instance_keywords['hostname'] = socket.gethostname()
+instance_keywords['inst'] = str(instance)
+instance_keywords['hnme'] = socket.gethostname()
 
 time.sleep(1)
 
@@ -149,7 +149,7 @@ while(True):
 	postproc_outputs = {}
 	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
 	
-	instance_keywords['hpguppi_stem'] = os.path.basename(postproc_outputs['hpguppi'][0])
+	instance_keywords['stem'] = os.path.basename(postproc_outputs['hpguppi'][0])
 
 	procindex = 0
 
