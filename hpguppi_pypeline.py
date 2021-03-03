@@ -66,6 +66,8 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 	ret = []
 	for keyword in input_keywords.split(' '):
 		if keyword in postproc_outputs:
+			if len(postproc_outputs[keyword]) != 1:
+				return False
 			ret.append(*postproc_outputs[keyword])
 		elif keyword[0] in ['^', '&']:
 			if keyword[0] == '^' and keyword[1:] in postproc_lastinput:
