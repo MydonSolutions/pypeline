@@ -67,6 +67,7 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 	for keyword in input_keywords.split(' '):
 		if keyword in postproc_outputs:
 			if len(postproc_outputs[keyword]) != 1:
+				print('The number of outputs for {} is {} != 1.'.format(keyword, len(postproc_outputs[keyword])))
 				return False
 			ret.append(*postproc_outputs[keyword])
 		elif keyword[0] in ['^', '&']:
@@ -76,7 +77,7 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 				print('Detected verbatim input \"{}\"'.format(keyword[1:]))
 				ret.append(keyword[1:])
 		else:
-			print('No output for {}, probably it has not been run yet. Bailing.'.format(keyword))
+			print('No output for {}, probably it has not been run yet.'.format(keyword))
 			return False
 	
 	return ret
@@ -175,6 +176,7 @@ while(True):
 		postproc_inputkeywords = postproc_inputs[proc][postproc_inputindices[proc]]
 		postproc_lastinput[proc] = parse_input_keywords(postproc_inputkeywords, postproc_outputs, postproc_lastinput)
 		if postproc_lastinput[proc] is False:
+			print('Bailing...')
 			break
 
 		inp = postproc_lastinput[proc]
