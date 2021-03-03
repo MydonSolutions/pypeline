@@ -21,8 +21,8 @@ def run(argstr, inputs, envvar, instance_keywords):
 	if envvar is not None:
 		for variablevalues in envvar.split(' '):
 			print(variablevalues)
-			if '=' in variablevalues:
-				pair = variablevalues.split('=')
+			if ':' in variablevalues:
+				pair = variablevalues.split(':')
 				env[pair[0]] = pair[1]
 	
 	print(' '.join(cmd))

@@ -30,8 +30,8 @@ def run(argstr, inputs, envvar, instance_keywords):
 	if envvar is not None:
 		for variablevalues in envvar.split(' '):
 			print(variablevalues)
-			if '=' in variablevalues:
-				pair = variablevalues.split('=')
+			if ':' in variablevalues:
+				pair = variablevalues.split(':')
 				print('Environment variable-value pair:', pair)
 				env[pair[0]] = pair[1]
 	
