@@ -134,7 +134,7 @@ while(True):
 			time.sleep(1)
 
 	postproc_str = redishash.getkey('POSTPROC')
-	if 'skip' in postproc_str:
+	if 'skip' in postproc_str[0:4]:
 		continue
 	postprocs = redishash.getkey('POSTPROC').split(' ')
 	print('Post Processes:\n\t', postprocs)
