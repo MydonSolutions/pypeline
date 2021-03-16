@@ -78,18 +78,18 @@ def parse_input_keywords(input_keywords, postproc_outputs, postproc_lastinput):
 				print('The number of outputs for {} is {} != 1.'.format(keyword, len(postproc_outputs[keyword])))
 				return False
 			ret.append(postproc_outputs[keyword][0])
-		elif keyword[0] in ['^', '&']:
+		elif keyword[0] in ['^', '&', '*']:
 			if keyword[0] == '^' and keyword[1:] in postproc_lastinput:
 				ret.append(*postproc_lastinput[keyword[1:]])
 			elif keyword[0] == '&':
 				print('Detected verbatim input \"{}\"'.format(keyword[1:]))
 				ret.append(keyword[1:])
-		elif keyword[-2:] == '[]' and keyword[0:-2] in postproc_outputs:
-			if len(postproc_outputs[keyword[0:-2]]) == 0:
-				print('The number of outputs for {} is 0.'.format(keyword))
-				return False
-			print('Detected exhaustive input \"{}\"'.format(keyword))
-			ret.extend(postproc_outputs[keyword[0:-2]])
+			elif keyword[0] == '*':
+				if len(postproc_outputs[keyword[1:]]) == 0:
+					print('The number of outputs for {} is 0.'.format(keyword))
+					return False
+				print('Detected exhaustive input \"{}\"'.format(keyword))
+				ret.extend(postproc_outputs[keyword[1:]])
 		else:
 			print('No output for {}, probably it has not been run yet.'.format(keyword))
 			return False
