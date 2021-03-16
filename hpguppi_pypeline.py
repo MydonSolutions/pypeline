@@ -40,7 +40,7 @@ class RedisHash:
 #####################################################################
 
 import sys
-sys.path.insert(0, '/home/sonata/dev/pypeline/')
+sys.path.insert(0, '/home/sonata/src/observing_campaign/pypeline/')
 
 # sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
 # import hashpipe_aux
