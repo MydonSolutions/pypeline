@@ -83,12 +83,18 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 				print('Module {} produced zero outputs.'.format(symbol))
 				return False
 			input_values[symbol] = postproc_outputs[symbol]
-		elif symbol[0] in ['^', '&']:
+		elif symbol[0] in ['^', '&', '*']:
 			if symbol[0] == '^' and symbol[1:] in postproc_lastinput:
 				input_values[symbol] = postproc_lastinput[symbol[1:]]
 			elif symbol[0] == '&':
-				print('Detected verbatim input \"{}\"'.format(symbol[1:]))
+				print('Detected verbatim input \"{}\"'.format(symbol))
 				input_values[symbol] = [symbol[1:]]
+			elif symbol[0] == '*':
+				if len([symbol[1:]]) == 0:
+					print('Module {} produced zero outputs.'.format(symbol))
+					return False
+				print('Detected exhausitve input \"{}\"'.format(symbol))
+				input_values[symbol] = [postproc_outputs[symbol[1:]]] # wrap in list to treat as single value
 		else:
 			print('No replacement for {} within INP key, probably it has not been run yet.'.format(keyword))
 			return False
@@ -102,7 +108,10 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 	while not fully_permutated:
 		inp = []
 		for symbol in input_template_symbols:
-			inp.append(input_values[symbol][value_indices[symbol]])
+			if symbol[0] == '*':
+				inp.extend(input_values[symbol][value_indices[symbol]])
+			else:
+				inp.append(input_values[symbol][value_indices[symbol]])
 		ret.append(inp)
 
 		for i, symbol in enumerate(input_template_symbols_rev):
