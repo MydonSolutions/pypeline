@@ -1,5 +1,6 @@
 import subprocess
 import os
+import glob
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = None
@@ -27,5 +28,7 @@ def run(argstr, inputs, envvar):
 	
 	print(' '.join(cmd))
 	subprocess.run(cmd, env=env)
+
+	rawspec_output = inputpaths[0] if '.fil' in inputpaths[0] else inputpaths[1]
 	
-	return []
+	return glob.glob(os.path.dirname(rawspec_output)+'/*.png')

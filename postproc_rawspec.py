@@ -41,7 +41,4 @@ def run(argstr, inputs, envvar):
 	if '-d' in rawargs:
 		rawspec_outputstem = os.path.join(rawargs[rawargs.index('-d')+1], os.path.basename(inputpath))
 	
-	rawspec_outputs = glob.glob(rawspec_outputstem+'*.fil')
-	print('rawspec_outputs:', rawspec_outputs)
-
-	return rawspec_outputs
+	return glob.glob(rawspec_outputstem+'*.fil')
