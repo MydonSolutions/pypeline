@@ -45,10 +45,18 @@ sys.path.insert(0, '/home/sonata/dev/pypeline/')
 # sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
 # import hashpipe_aux
 
+reloadFlagDict = {}
+
 def import_postproc_module(modulename):
 	if modulename not in globals(): #modulename not in sys.modules:
 		globals()[modulename] = importlib.import_module('postproc_'+modulename)
 		print('Imported the {} module!'.format(modulename))
+		reloadFlagDict[modulename] = False
+		return True
+	elif reloadFlagDict[modulename]:
+		globals()[modulename] = importlib.reload(globals()[modulename])
+		print('Reloaded the {} module!'.format(modulename))
+		reloadFlagDict[modulename] = False
 		return True
 	return False
 
@@ -169,7 +177,7 @@ while(True):
 			time.sleep(1)
 
 	postproc_str = redishash.getkey('POSTPROC')
-	if 'skip' in postproc_str:
+	if 'skip' in postproc_str[0:4]:
 		continue
 	postprocs = redishash.getkey('POSTPROC').split(' ')
 	print('Post Processes:\n\t', postprocs)
@@ -220,7 +228,7 @@ while(True):
 
 		inp = postproc_inputs[proc][postproc_inputindices[proc]]
 		if inp is False:
-			print('Bailing...')
+			print('Bailing on post-processing...')
 			break
 
 		postproc_lastinput[proc] = inp
@@ -232,12 +240,16 @@ while(True):
 		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
 		# Run the process
-		# TODO wrap in try..except and remove module on exception so it is reloaded
-		postproc_outputs[proc] = globals()[proc].run(
-																								arg,
-																								inp,
-																								env
-																								)
+		try:
+			postproc_outputs[proc] = globals()[proc].run(
+																									arg,
+																									inp,
+																									env
+																									)
+		except:
+			reloadFlagDict[proc] = True
+			print('%s.run() failed. Bailing on post-processing...'%proc)
+			break
 
 		# Increment through inputs, overflow increment through arguments
 		postproc_inputindices[proc] += 1
