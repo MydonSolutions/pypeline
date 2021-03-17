@@ -71,6 +71,8 @@ def replace_instance_keywords(keyword_dict, string):
 	return string
 
 def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
+	if input_template is None:
+		return [[]]
 	ret = []
 	input_values = {}
 	value_indices = {}
