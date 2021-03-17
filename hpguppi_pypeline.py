@@ -67,7 +67,7 @@ def block_until_obsinfo_valid(instance=0):
 
 def replace_instance_keywords(keyword_dict, string):
 	for keyword in keyword_dict.keys():
-		string = string.replace('${}$'.format(keyword), keyword_dict[keyword])
+		string = string.replace('${}$'.format(keyword), str(keyword_dict[keyword]))
 	return string
 
 def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
@@ -169,8 +169,11 @@ instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
 
 instance_keywords = {}
-instance_keywords['inst'] = str(instance)
+instance_keywords['inst'] = instance
 instance_keywords['hnme'] = socket.gethostname()
+instance_keywords['stem'] = None # repopulated after each recording
+instance_keywords['beg'] 	= time.time() # repopulated as each recording begins
+instance_keywords['end'] 	= time.time() # repopulated as each recording ends
 
 time.sleep(1)
 
@@ -181,11 +184,13 @@ while(True):
 	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) != 'recording'):
 			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 			time.sleep(0.25)
+	instance_keywords['beg'] = time.time()
 	# Wait until the recording ends
 	print('\nWaiting while DAQSTATE == recording')
 	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) == 'recording'):
 			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
-			time.sleep(1)
+			time.sleep(0.25)
+	instance_keywords['end'] = time.time()
 
 	postproc_str = redishash.getkey('POSTPROC')
 	if 'skip' in postproc_str[0:4]:
