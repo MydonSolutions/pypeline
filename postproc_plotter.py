@@ -31,4 +31,6 @@ def run(argstr, inputs, envvar):
 
 	rawspec_output = inputpaths[0] if '.fil' in inputpaths[0] else inputpaths[1]
 	
-	return glob.glob(os.path.dirname(rawspec_output)+'/*.png')
+	plotter_output = glob.glob(os.path.dirname(rawspec_output)+'/*.png')
+
+	return plotter_output if plotter_output is not None else []
