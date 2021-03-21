@@ -1,6 +1,7 @@
 import subprocess
 import os
 import glob
+import re
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = None
@@ -17,7 +18,16 @@ def run(argstr, inputs, env):
 	patterns = [inputs[0]]
 	if len(inputs) > 1:
 		inputprefix = inputs[0]
-		inputprefix = inputprefix[0:inputprefix.find(".")]
+		print(inputprefix)
+
+		# try take prefix as preceding \..\d+\..*
+		inputprefix = re.match(r'(?P<prefix>^.*)\.\d+\..+$', inputprefix)
+		if inputprefix is not None:
+			inputprefix = inputprefix.group('prefix')
+		else:
+			inputprefix = inputs[0]
+			inputprefix = inputprefix[0:inputprefix.find(".")]
+
 		patterns = [inputprefix+extension for extension in inputs[1:]]
 
 	for pattern in patterns:
