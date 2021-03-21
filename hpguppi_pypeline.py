@@ -307,3 +307,9 @@ while(True):
 				postproc_args, postproc_argindices
 			)
 			print('\nRewound to {}\n'.format(postprocs[procindex]))
+	# End of while post_proc step
+
+	for proc in reloadFlagDict.keys():
+		reloadFlagDict[proc] = True
+
+# End of main while(True)
