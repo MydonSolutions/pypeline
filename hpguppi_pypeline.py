@@ -95,7 +95,7 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 				if len([symbol[1:]]) == 0:
 					print('Module {} produced zero outputs.'.format(symbol))
 					return False
-				print('Detected exhausitve input \"{}\"'.format(symbol))
+				print('Detected exhaustive input \"{}\"'.format(symbol))
 				input_values[symbol] = [postproc_outputs[symbol[1:]]] # wrap in list to treat as single value
 		else:
 			print('No replacement for {} within INP key, probably it has not been run yet.'.format(keyword))
@@ -144,11 +144,11 @@ def fetch_proc_key_value(key, proc, value_dict, index_dict, redishash, value_del
 	return True
 
 def print_proc_dict_progress(proc, inp_tmp_dict, inp_tmpidx_dict, inp_dict, inpidx_dict, arg_dict, argidx_dict):
-	print('{}: input_templateindex {}/{}, inputindex {}/{}, argindex {}/{}\n'.format(
+	print('{}: input_templateindex {}/{}, inputindex {}/{}, argindex {}/{}'.format(
 		proc,
-		inp_tmpidx_dict[proc],
+		inp_tmpidx_dict[proc]+1,
 		len(inp_tmp_dict[proc]),
-		inpidx_dict[proc],
+		inpidx_dict[proc]+1,
 		len(inp_dict[proc]),
 		argidx_dict[proc],
 		len(arg_dict[proc])
