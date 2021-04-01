@@ -3,6 +3,8 @@ import os
 import re
 import csv
 from operator import itemgetter
+import numpy as np
+import pandas as pd
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = 'PPSGVARG'
@@ -10,15 +12,15 @@ PROC_INP_KEY = 'PPSGVINP'
 PROC_NAME = 'setigen_validate'
 
 def run(argstr, inputs, envvar):
-	if len(inputs) < 1:
-		print('Plotter requires both the stem and plotter\'s outputs.')
+	if len(inputs) != 1:
+		print('Setigen Detection Validation requires only the output from postproc_plotter.')
 		return []
-	stemOutputs = [inp for inp in inputs if '.png' not in inp]
-	assert(len(stemOutputs)==1)
-	plotterOutputs = [inp for inp in inputs if '.png' in inp]
-
+	candidate_detections = inputs[0]
+	if argstr is None:
+		print('Setigen Detection Validation expects the stem in argstr (use $stem$).')
+	
 	hyphenDelimRE = r'(?P<val>-?[^-]+)-?'
-	m = re.match(r'.*sy_(?P<id>\d+)', stemOutputs[0])
+	m = re.match(r'.*sy_(?P<id>\d+)', argstr)
 	if m:
 		print('ID:', m.group('id'))
 		with open('/home/sonata/dev/test_setigen/generated.csv', 'r') as fio:
@@ -30,51 +32,46 @@ def run(argstr, inputs, envvar):
 		assert(synthDict)
 		freqs = re.findall(hyphenDelimRE, synthDict['Freqs'])
 		drates = re.findall(hyphenDelimRE, synthDict['Drates'])
-
-	else:# must be older file...
-		print('must be older file...')
-		m = re.match(r'.*sy_N(?P<nant>\d+)_(?P<siglevel>[^_]*)_(?P<bits>\d+)b_(?P<freqs>[^_]*)_(?P<drates>.*)', stemOutputs[0])
-		assert m is not None
-
-		freqs = re.findall(hyphenDelimRE, m.group('freqs'))
-		drates = re.findall(hyphenDelimRE, m.group('drates'))
-		drates = [d[0:-4] for d in drates]
-		print('drates', drates)
+	else:
+		print('No match found for the ID in the dat filepath:', argstr)
+		return []
 
 	# Collect generated signals in list
 	signals = []
 	for sigI in range(len(freqs)):
 		signals.append({'freq':float(freqs[sigI][0:-3])*1000, 'drate':float(drates[sigI])})
 
-	# Collect detected signals in list
-	detections = []
-	plotterOutputRE = r'_dr_(?P<drate>-?[^-]+)_freq_(?P<freq>.*).png'
-	for pngfile in plotterOutputs:
-		m = re.search(plotterOutputRE, pngfile)
-		if m is not None:
-			detections.append({'freq':float(m.group('freq')), 'drate':float(m.group('drate'))})
-
 	# Sort the lists
 	signals.sort(key=itemgetter('freq'), reverse=False)
-	detections.sort(key=itemgetter('freq'), reverse=False)
-
-	# Pad the lists
-	while (len(detections) < len(signals)):
-		detections.append({'freq':'', 'drate':''})
-	while (len(detections) > len(signals)):
-		signals.append({'freq':'', 'drate':''})
+	candidate_detections = candidate_detections.sort_values(by=['FreqStart'], ascending=True)
 
 	# Formatted print the lists
-	format_row = '{:>20}' * (4+1)
-	print(format_row.format(*['-'*20 for i in range(4+1)]))
-	print(format_row.format('Signal (MHz)', 'Drift Rate (Hz/s)', '||', 'Detected (MHz)', 'Drift Rate (Hz/s)'))
-	for i in range(len(detections)):
-		print(format_row.format(signals[i]['freq'], signals[i]['drate'], '||', detections[i]['freq'], detections[i]['drate']))
-	print(format_row.format(*['-'*20 for i in range(4+1)]))
+	format_row = '{:>20}' * (2+1+3)
+	print(format_row.format(*['-'*20 for i in range(2+1+3)]))
+	print(format_row.format('Signal (MHz)', 'Drift Rate (Hz/s)', '||', 'Detected (MHz)', 'Drift Rate (Hz/s)', 'SNR'))
+	for i in range(max(len(candidate_detections), len(signals))):
+		
+		injectionPart = ['', '']
+		if i < len(signals):
+			injectionPart = [signals[i]['freq'], signals[i]['drate']]
+		detectionPart = ['', '', '']
+		if i < len(candidate_detections.index):
+			rowid = candidate_detections.index[i]
+			detectionPart = [candidate_detections.loc[rowid, 'FreqStart'], candidate_detections.loc[rowid, 'DriftRate'], candidate_detections.loc[rowid, 'SNR']]
+		
+		print(format_row.format(*injectionPart, '||', *detectionPart))
+	print(format_row.format(*['-'*20 for i in range(2+1+3)]))
 	
 	return []
 
 if __name__== "__main__":
-	# run(None, ['/mnt/buf0/setigen_raw/././sy_N3_0.006_4b_6.1022GHz-6.1032GHz_-2.0Hzps-4.0Hzps'], None)
-	# run(None, ['/mnt/buf0/setigen_raw/././sy_0'], None)
-	run(None, ['/mnt/buf0/rawspec_setigen/sy_7/sy_7-ics.rawspec.0000.fil', '1_SYNTHETIC_dr_-2.40_freq_6175.124748.png', '1_SYNTHETIC_dr_5.28_freq_6176.437252.png', '1_SYNTHETIC_dr_-2.40_freq_6175.374748.png'], None)
+	import postproc_plotter as candi
+	from string import Template
+
+	fil_filepath = Template('/mnt/buf0/rawspec_setigen/${stem}_old/${stem}-ics.rawspec.0000.fil')
+	dat_filepath = Template('/mnt/buf0/turboseti_setigen/${stem}/${stem}-ics.rawspec.0000.dat')
+
+	for stem in ['sy_15']:#, 'sy_14', 'sy_15']:
+		run(stem, 
+			candi.run('-P', [fil_filepath.substitute(stem=stem), dat_filepath.substitute(stem=stem)], None),
+			None)
