@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime
 import argparse
+import pandas as pd
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = 'PPLOGARG'
@@ -21,11 +22,14 @@ def run(argstr, inputs, env):
 
     args = parser.parse_args(argstr.split(' '))
     
-    pngDetectionFiles = []
-    if inputs is not None:
-        pngDetectionFiles = [inp for inp in inputs if '.png' in inp]
+
+    detection_count = -1
+	if len(inputs) != 1:
+		print('The logger would log the number of detections (the output from postproc_candidate_filter).')
+    else:
+	    candidate_detections = inputs[0] # pandas.DataFrame
+        detection_count = len(candidate_detections.index)
     
-    print('pngDetectionFiles:', pngDetectionFiles)
 
     logfilepath = '/home/sonata/logs/obs-%s.%s.csv'%(args.H, args.i)
     with open(logfilepath, 'a', newline='') as csvfile:
@@ -38,7 +42,7 @@ def run(argstr, inputs, env):
             str(datetime.fromtimestamp(args.b)),
             '%0.3f'%(obs_duration.seconds + obs_duration.microseconds/1e6),
             '%0.3f'%(postproc_duration.seconds + postproc_duration.microseconds/1e6),
-            str(len(pngDetectionFiles)),
+            str(len(candidate_detections.index)),
         ]
         csvwr.writerow(row)
 
