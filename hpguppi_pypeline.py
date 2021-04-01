@@ -238,6 +238,9 @@ while(True):
 			proc_input_template = postproc_input_templates[proc][postproc_input_templateindices[proc]]
 			postproc_inputs[proc] = parse_input_template(proc_input_template, postproc_outputs, postproc_lastinput)
 			# print(proc, 'inputs:', postproc_inputs[proc])
+			if postproc_inputs[proc] is False:
+				print('Bailing on post-processing...')
+				break
 
 		# Set status
 		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
