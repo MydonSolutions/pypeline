@@ -13,7 +13,7 @@ PROC_NAME = 'setigen_validate'
 
 def run(argstr, inputs, envvar):
 	if len(inputs) != 1:
-		print('Setigen Detection Validation requires only the output from postproc_plotter.')
+		print('Setigen Detection Validation requires only the output from postproc_candidate_filter.')
 		return []
 	candidate_detections = inputs[0]
 	if argstr is None:
@@ -43,7 +43,12 @@ def run(argstr, inputs, envvar):
 
 	# Sort the lists
 	signals.sort(key=itemgetter('freq'), reverse=False)
-	candidate_detections = candidate_detections.sort_values(by=['FreqStart'], ascending=True)
+	candidate_detection_count = 0
+	if candidate_detections is not None:
+		candidate_detections = candidate_detections.sort_values(by=['FreqStart'], ascending=True)
+		candidate_detection_count = len(candidate_detections.index)
+	else:
+		candidate_detections = []
 
 	# Formatted print the lists
 	format_row = '{:>20}' * (2+1+3)
@@ -54,8 +59,9 @@ def run(argstr, inputs, envvar):
 		injectionPart = ['', '']
 		if i < len(signals):
 			injectionPart = [signals[i]['freq'], signals[i]['drate']]
+
 		detectionPart = ['', '', '']
-		if i < len(candidate_detections.index):
+		if i < candidate_detection_count:
 			rowid = candidate_detections.index[i]
 			detectionPart = [candidate_detections.loc[rowid, 'FreqStart'], candidate_detections.loc[rowid, 'DriftRate'], candidate_detections.loc[rowid, 'SNR']]
 		
@@ -68,10 +74,13 @@ if __name__== "__main__":
 	import postproc_candidate_filter as candi
 	from string import Template
 
-	fil_filepath = Template('/mnt/buf0/rawspec_setigen/${stem}_old/${stem}-ics.rawspec.0000.fil')
+	fil_filepath = Template('/mnt/buf0/rawspec_setigen/${stem}/${stem}-ics.rawspec.0000.fil')
 	dat_filepath = Template('/mnt/buf0/turboseti_setigen/${stem}/${stem}-ics.rawspec.0000.dat')
 
-	for stem in ['sy_15']:#, 'sy_14', 'sy_15']:
+	for stem in ['sy_7', 'sy_14', 'sy_15']:
 		run(stem, 
 			candi.run('-P', [fil_filepath.substitute(stem=stem), dat_filepath.substitute(stem=stem)], None),
 			None)
+	run('sy_4',
+		[None],
+		None)
