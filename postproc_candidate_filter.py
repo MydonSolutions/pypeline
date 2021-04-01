@@ -5,8 +5,8 @@ import os
 import glob
 
 PROC_ENV_KEY = None
-PROC_ARG_KEY = 'PPPLTARG'
-PROC_INP_KEY = 'PPPLTINP'
+PROC_ARG_KEY = 'PPCNDARG'
+PROC_INP_KEY = 'PPCNDINP'
 PROC_NAME = 'candidate_filter&plotter'
 
 def run(argstr, inputs, envvar):
@@ -43,7 +43,7 @@ def run(argstr, inputs, envvar):
 	cands = find_event.find_events([dat_filepath], args.snr_thresh, False, args.rfi_filter)
 	if cands is not None and not args.no_plot:
 		plot_event.plot_candidate_events(cands, [fil_filepath], str(args.rfi_filter), args.source_name, args.offset)
-	return [cands] if cands is not None else []
+	return [cands] if cands is not None else [ None ]
 	# plotter_output = glob.glob(os.path.dirname(fil_filepath)+'/*.png')
 
 	# return plotter_output if plotter_output is not None else []

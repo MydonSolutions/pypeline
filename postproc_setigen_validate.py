@@ -65,7 +65,7 @@ def run(argstr, inputs, envvar):
 	return []
 
 if __name__== "__main__":
-	import postproc_plotter as candi
+	import postproc_candidate_filter as candi
 	from string import Template
 
 	fil_filepath = Template('/mnt/buf0/rawspec_setigen/${stem}_old/${stem}-ics.rawspec.0000.fil')
