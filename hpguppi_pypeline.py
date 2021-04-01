@@ -108,7 +108,7 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 				print('Detected exhaustive input \"{}\"'.format(symbol))
 				input_values[symbol] = [postproc_outputs[symbol[1:]]] # wrap in list to treat as single value
 		else:
-			print('No replacement for {} within INP key, probably it has not been run yet.'.format(keyword))
+			print('No replacement for {} within INP key, probably it has not been run yet.'.format(symbol))
 			return False
 		
 		value_indices[symbol] = 0
