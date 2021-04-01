@@ -9,6 +9,7 @@ import socket
 from string import Template
 import argparse
 import importlib
+import threading
 
 from HpguppiMon import hashpipe_aux
 
@@ -44,6 +45,15 @@ sys.path.insert(0, '/home/sonata/src/observing_campaign/pypeline/')
 
 # sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
 # import hashpipe_aux
+
+STATUS_STR = "INITIALISING"
+def publish_status_thr(redishash, sleep_interval):
+		global STATUS_STR
+		ellipsis_count = 0
+		while(1):
+			time.sleep(sleep_interval)
+			redishash.setkey('PPSTATUS=%s'%(STATUS_STR+'.'*int(ellipsis_count)))
+			ellipsis_count = (ellipsis_count+1)%4
 
 reloadFlagDict = {}
 
@@ -165,6 +175,9 @@ args = parser.parse_args()
 
 redishash = RedisHash(socket.gethostname(), args.instance)
 
+status_thread = threading.Thread(target=publish_status_thr, args=(redishash, 1.5), daemon=True)
+status_thread.start()
+
 instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
 
@@ -178,18 +191,18 @@ instance_keywords['end'] 	= time.time() # repopulated as each recording ends
 time.sleep(1)
 
 while(True):
+	STATUS_STR = "WAITING"
 	# Wait until a recording starts
-	redishash.setkey('PPSTATUS=WAITING')
 	print('\nWaiting while DAQSTATE != recording')
-	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) != 'recording'):
-			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
-			time.sleep(0.25)
-	instance_keywords['beg'] = time.time()
-	# Wait until the recording ends
-	print('\nWaiting while DAQSTATE == recording')
-	while(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance) == 'recording'):
-			# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
-			time.sleep(0.25)
+	for check_idx, check in enumerate([lambda x, y: x != y, lambda x, y: x == y]):
+			while(check(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), 'recording')):
+					# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
+					time.sleep(0.25)
+			
+			if check_idx == 1:
+					instance_keywords['beg'] = time.time()
+					# Wait until the recording ends
+					print('\nWaiting while DAQSTATE == recording')
 	instance_keywords['end'] = time.time()
 
 	postproc_str = redishash.getkey('POSTPROC')
@@ -242,8 +255,8 @@ while(True):
 				print('Bailing on post-processing...')
 				break
 
-		# Set status
-		redishash.setkey('PPSTATUS='+globals()[proc].PROC_NAME)
+		# Set status (the publish_status_thread reads from this global)
+		STATUS_STR = globals()[proc].PROC_NAME
 
 		inp = postproc_inputs[proc][postproc_inputindices[proc]]
 		if inp is False:
