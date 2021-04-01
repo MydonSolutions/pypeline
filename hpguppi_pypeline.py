@@ -230,6 +230,11 @@ while(True):
 
 	while True:
 		proc = postprocs[procindex]
+		proc_critical = True
+		if proc[0] == '*':
+			proc_critical = False
+			proc = proc[1:]
+
 		import_postproc_module(proc)
 
 		envkey = globals()[proc].PROC_ENV_KEY
@@ -281,8 +286,10 @@ while(True):
 																									)
 		except:
 			reloadFlagDict[proc] = True
-			print('%s.run() failed. Bailing on post-processing...'%proc)
-			break
+			print('%s.run() failed.'%proc)
+			if proc_critical:
+				print('Bailing on post-processing...')
+				break
 
 		# Increment through inputs, overflow increment through arguments
 		postproc_inputindices[proc] += 1
@@ -299,6 +306,8 @@ while(True):
 
 			procindex += 1
 			proc = postprocs[procindex]
+			if proc[0] == '*':
+				proc = proc[1:]
 			postproc_input_templateindices[proc] = 0
 			postproc_inputindices[proc] = 0
 			postproc_argindices[proc] = 0
@@ -313,6 +322,8 @@ while(True):
 				)
 				procindex -= 1
 				proc = postprocs[procindex]
+				if proc[0] == '*':
+					proc = proc[1:]
 
 			# Break if there are no novel process argument-input permutations
 			if procindex < 0:
