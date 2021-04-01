@@ -207,6 +207,7 @@ while(True):
 
 	postproc_str = redishash.getkey('POSTPROC')
 	if 'skip' in postproc_str[0:4]:
+		print('POSTPROC key begins with skip, not post-processing.')
 		continue
 	postprocs = redishash.getkey('POSTPROC').split(' ')
 	print('Post Processes:\n\t', postprocs)
