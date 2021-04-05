@@ -2,6 +2,7 @@
 import subprocess
 import argparse
 import time
+from datetime import datetime
 import os
 import glob
 import redis
@@ -53,6 +54,7 @@ def publish_status_thr(redishash, sleep_interval):
 		while(1):
 			time.sleep(sleep_interval)
 			redishash.setkey('PPSTATUS=%s'%(STATUS_STR+'.'*int(ellipsis_count)))
+			redishash.setkey('PPPULSE=%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
 			ellipsis_count = (ellipsis_count+1)%4
 
 reloadFlagDict = {}
