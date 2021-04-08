@@ -22,15 +22,13 @@ def run(argstr, inputs, env):
 
     args = parser.parse_args(argstr.split(' '))
     
-
     detection_count = -1
-	if len(inputs) != 1:
-		print('The logger would log the number of detections (the output from postproc_candidate_filter).')
+    if len(inputs) != 1:
+        print('The logger would log the number of detections (the output from postproc_candidate_filter).')
     else:
-	    candidate_detections = inputs[0] # pandas.DataFrame
-        detection_count = len(candidate_detections.index)
+        candidate_detections = inputs[0] # pandas.DataFrame
+        detection_count = len(candidate_detections)
     
-
     logfilepath = '/home/sonata/logs/obs-%s.%s.csv'%(args.H, args.i)
     with open(logfilepath, 'a', newline='') as csvfile:
         csvwr = csv.writer(csvfile, delimiter=',',
@@ -42,8 +40,11 @@ def run(argstr, inputs, env):
             str(datetime.fromtimestamp(args.b)),
             '%0.3f'%(obs_duration.seconds + obs_duration.microseconds/1e6),
             '%0.3f'%(postproc_duration.seconds + postproc_duration.microseconds/1e6),
-            str(len(candidate_detections.index)),
+            str(detection_count),
         ]
         csvwr.writerow(row)
 
     return []
+
+if __name__ == '__main__':
+    run('-H test -i 0 -s test_stem -b 1.0 -e 2.0', [[1, 2]], None)
