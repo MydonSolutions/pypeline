@@ -237,8 +237,9 @@ while(True):
 			proc_critical = False
 			proc = proc[1:]
 
-		import_postproc_module(proc)
+		import_postproc_module(proc) # TODO catch non-existent module
 
+		STATUS_STR = "SETUP " + globals()[proc].PROC_NAME
 		envkey = globals()[proc].PROC_ENV_KEY
 		inpkey = globals()[proc].PROC_INP_KEY
 		argkey = globals()[proc].PROC_ARG_KEY
@@ -292,6 +293,8 @@ while(True):
 			if proc_critical:
 				print('Bailing on post-processing...')
 				break
+
+		STATUS_STR = "FINISHED " + STATUS_STR
 
 		# Increment through inputs, overflow increment through arguments
 		postproc_inputindices[proc] += 1
