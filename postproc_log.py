@@ -26,7 +26,7 @@ def run(argstr, inputs, env):
     if len(inputs) != 1:
         print('The logger would log the number of detections (the output from postproc_candidate_filter).')
     else:
-        candidate_detections = inputs[0] # pandas.DataFrame
+        candidate_detections = inputs[0] if inputs[0] is not None else [] # pandas.DataFrame
         detection_count = len(candidate_detections)
     
     logfilepath = '/home/sonata/logs/obs-%s.%s.csv'%(args.H, args.i)
