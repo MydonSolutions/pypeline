@@ -201,7 +201,7 @@ while(True):
 					# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 					time.sleep(0.25)
 			
-			if check_idx == 1:
+			if check_idx == 0:
 					instance_keywords['beg'] = time.time()
 					# Wait until the recording ends
 					print('\nWaiting while DAQSTATE == recording')
