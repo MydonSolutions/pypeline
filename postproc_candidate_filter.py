@@ -7,7 +7,7 @@ import glob
 PROC_ENV_KEY = None
 PROC_ARG_KEY = 'PPCNDARG'
 PROC_INP_KEY = 'PPCNDINP'
-PROC_NAME = 'candidate_filter&plotter'
+PROC_NAME = 'candifilplot'
 
 def run(argstr, inputs, envvar):
 	if len(inputs) < 2:
@@ -40,10 +40,28 @@ def run(argstr, inputs, envvar):
 	
 	args = parser.parse_args(argstr.split(' ') if argstr is not None else '')
 
-	cands = find_event.find_events([dat_filepath], args.snr_thresh, False, args.rfi_filter)
-	if cands is not None and not args.no_plot:
-		plot_event.plot_candidate_events(cands, [fil_filepath], str(args.rfi_filter), args.source_name, args.offset)
-	return [cands] if cands is not None else [ None ]
+	candidates = find_event.find_events([dat_filepath], args.snr_thresh, False, args.rfi_filter)
+	if candidates is not None and not args.no_plot:
+		plot_event.plot_candidate_events(candidates, [fil_filepath], str(args.rfi_filter), args.source_name, args.offset)
+
+	if candidates is not None:
+		candidates = candidates.sort_values(by=['FreqStart'], ascending=True)
+
+		# Formatted log the lists
+		format_row = '{:>20}' * (3) + '\n'
+		log_filepath = os.path.join(os.path.dirname(fil_filepath), 'candidates.txt')
+		print('Writing summary of %d candidate(s) to %s'%(len(candidates), log_filepath))
+		with open(log_filepath, 'w') as fio:	
+			fio.write(format_row.format(*['-'*20 for i in range(3)]))
+			fio.write(format_row.format('Detected (MHz)', 'Drift Rate (Hz/s)', 'SNR'))
+			fio.write(format_row.format(*['-'*20 for i in range(3)]))
+			for i in range(len(candidates)):
+				rowid = candidates.index[i]
+				detectionPart = [candidates.loc[rowid, 'FreqStart'], candidates.loc[rowid, 'DriftRate'], candidates.loc[rowid, 'SNR']]
+				fio.write(format_row.format(*detectionPart))
+			fio.write(format_row.format(*['-'*20 for i in range(3)]))
+
+	return [candidates] if candidates is not None else [ None ]
 	# plotter_output = glob.glob(os.path.dirname(fil_filepath)+'/*.png')
 
 	# return plotter_output if plotter_output is not None else []
