@@ -224,8 +224,17 @@ while(True):
 	postproc_args = {}
 	postproc_argindices = {}
 	postproc_outputs = {}
-	postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
-	
+	postproc_outputs['hpguppi'] = [None]
+	attempt = 0
+	while not postproc_outputs['hpguppi'][0] and attempt < 2:
+		postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
+		attempt += 1
+		time.sleep(1)
+
+	if not postproc_outputs['hpguppi'][0]:
+		print('No captured RAW data found for post-processing.')
+		continue
+
 	instance_keywords['stem'] = os.path.basename(postproc_outputs['hpguppi'][0])
 
 	procindex = 0
