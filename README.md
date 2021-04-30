@@ -68,9 +68,9 @@ def run(arg::str, input::list, env::str):
 	return outputs::list
 ```
 
-- PROC_ARG_KEY 	: names the key whose value determine the 1st argument for `run()`
-- PROC_INP_KEY 	: names the key whose value determine the 2nd argument for `run()`
-- PROC_ENV_KEY 	: names the key whose value determine the 3rd argument for `run()`
+- PROC_ARG_KEY 	: names the key whose value determines the 1st argument for `run()`
+- PROC_INP_KEY 	: names the key whose value determines the 2nd argument for `run()`
+- PROC_ENV_KEY 	: names the key whose value determines the 3rd argument for `run()`
 - PROC_NAME 		: the display name of the stage
 
 ## INPUT Keywords and Modifiers
