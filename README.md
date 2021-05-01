@@ -106,29 +106,38 @@ are replaced by values held by the primary script.
 Mutliple words in the ARGUMENT and ENVIRONMENT values are listed separated by spaces, and
 multiple argument-sets are separated by commas (`,`).
 
-## An Example Showcased by the Value of Modules' Keys
+## An Example Showcased by the Value of Stages' Keys
 
 `hashpipe_check_status` is used to set the value of key `-k` to `-s`.
 
-Specify the 'postproc_*' names of the modules to be run in the post-processing, in order
-	- `hashpipe_check_status -k POSTPROC -s "rawspec turboseti plotter"`
+Specify the 'postproc_*' names of the stages to be run in the post-processing, in order
+	- `hashpipe_check_status -k POSTPROC -s "rawspec turboseti candidate_filter log rm"`
 
 Specify that the input of rawspec (RWS) is the output of hpguppi
 	- `hashpipe_check_status -k PPRWSINP -s "hpguppi"`
-Specify the environment variables of the rawspec command
-	- `hashpipe_check_status -k PPRWSENV -s "CUDA_VISIBLE_DEVICES=0"`
+
 Specify the static arguments of rawspec
-	- `hashpipe_check_status -k PPRWSARG -s "-f 14560 -t 16 -S -d /mnt/buf0/rawspec"`
+	- `hashpipe_check_status -k PPRWSARG -s "-f 116480 -t 2 -I 1.0 -d /mnt/buf$inst$/rawspec/$stem$/"`
+
+Specify the environment variables of the rawspec command
+	- `hashpipe_check_status -k PPRWSENV -s "CUDA_VISIBLE_DEVICES:$inst$"`
+
 
 Specify that the input of turboSETI (TBS) is the output of rawspec
 	- `hashpipe_check_status -k PPTBSINP -s "rawspec"`
-Specify the environment variables of the turboSETI command
-	- `hashpipe_check_status -k PPTBSENV -s "CUDA_VISIBLE_DEVICES=0"`
-Specify the static arguments of turboSETI
-	- `hashpipe_check_status -k PPTBSARG -s "-M 20 -o /mnt/buf0/turboseti/ -g y -p 12 -n 1440"`
 
-Specify that the input of rawspec (RWS) is the output of turboseti and the input of turboseti
-	- `hashpipe_check_status -k PPPLTINP -s "turboseti ^turboseti"`
+Specify the static arguments of turboSETI
+	- `hashpipe_check_status -k PPTBSARG -s "-M 10 -g n -p 12 -n 1440 -o /mnt/buf$inst$/turboseti/$stem$/"`
+
+Specify the environment variables of the turboSETI command
+	- `hashpipe_check_status -k PPTBSENV -s "CUDA_VISIBLE_DEVICES:$inst$"`
+
+
+Specify that the input of candidate filter (CND) is the output and the input of turboseti
+	- `hashpipe_check_status -k PPCNDINP -s "turboseti ^turboseti"`
+
+Specify the static arguments of the candidate filter script
+	- `hashpipe_check_status -k PPCNDINP -s "-r 1 -s 10 -o auto -n bla"`
 
 ## Development of a Bespoke Pipeline
 
