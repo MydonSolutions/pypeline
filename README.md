@@ -111,26 +111,26 @@ multiple argument-sets are separated by commas (`,`).
 `hashpipe_check_status` is used to set the value of key `-k` to `-s`.
 
 Specify the 'postproc_*' names of the stages to be run in the post-processing, in order
-	- `hashpipe_check_status -k POSTPROC -s "rawspec turboseti candidate_filter log rm"`
+- `hashpipe_check_status -k POSTPROC -s "rawspec turboseti candidate_filter log rm"`
 
 Specify that the input of rawspec (RWS) is the output of hpguppi, then the static
 arguments and the environment variables of the rawspec command:
-	- `hashpipe_check_status -k PPRWSINP -s "hpguppi"`
-	- `hashpipe_check_status -k PPRWSARG -s "-f 116480 -t 2 -I 1.0 -d /mnt/buf$inst$/rawspec/$stem$/"`
-	- `hashpipe_check_status -k PPRWSENV -s "CUDA_VISIBLE_DEVICES:$inst$"`
+- `hashpipe_check_status -k PPRWSINP -s "hpguppi"`
+- `hashpipe_check_status -k PPRWSARG -s "-f 116480 -t 2 -I 1.0 -d /mnt/buf$inst$/rawspec/$stem$/"`
+- `hashpipe_check_status -k PPRWSENV -s "CUDA_VISIBLE_DEVICES:$inst$"`
 
 
 Specify that the input of turboSETI (TBS) is the output of rawspec, then the static
 arguments and the environment variables of the turboSETI command:
-	- `hashpipe_check_status -k PPTBSINP -s "rawspec"`
-	- `hashpipe_check_status -k PPTBSARG -s "-M 10 -g n -p 12 -n 1440 -o /mnt/buf$inst$/turboseti/$stem$/"`
-	- `hashpipe_check_status -k PPTBSENV -s "CUDA_VISIBLE_DEVICES:$inst$"`
+- `hashpipe_check_status -k PPTBSINP -s "rawspec"`
+- `hashpipe_check_status -k PPTBSARG -s "-M 10 -g n -p 12 -n 1440 -o /mnt/buf$inst$/turboseti/$stem$/"`
+- `hashpipe_check_status -k PPTBSENV -s "CUDA_VISIBLE_DEVICES:$inst$"`
 
 
 Specify that the input of candidate filter (CND) is the output and the input of
 turboseti, then the static arguments of the candidate filter script
-	- `hashpipe_check_status -k PPCNDINP -s "turboseti ^turboseti"`
-	- `hashpipe_check_status -k PPCNDINP -s "-r 1 -s 10 -o auto -n bla"`
+- `hashpipe_check_status -k PPCNDINP -s "turboseti ^turboseti"`
+- `hashpipe_check_status -k PPCNDINP -s "-r 1 -s 10 -o auto -n bla"`
 
 ## Development of a Bespoke Pipeline
 
