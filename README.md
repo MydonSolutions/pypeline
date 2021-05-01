@@ -3,9 +3,7 @@
 Hpguppi_pypeline aims to provide a framework for pipelining the execution of
 modular Python scripts, enabling the creation of a custom post-processing pipeline
 for the data captured by a hashpipe ([hpguppi_daq](https://github.com/realtimeradio/hpguppi_daq))
-instance. The pipeline typically consists of consequetive process calls handled by Python
-script 'modules', but each stage's Python script could be standalone and not execute any
-process calls.
+instance.
 
 ## Approach
 
