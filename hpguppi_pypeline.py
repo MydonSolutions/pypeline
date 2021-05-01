@@ -12,7 +12,7 @@ import argparse
 import importlib
 import threading
 
-from HpguppiMon import hashpipe_aux
+from SNAPobs.snap_hpguppi import hpguppi_monitor
 
 #####################################################################
 from string import Template
@@ -44,8 +44,6 @@ class RedisHash:
 import sys
 sys.path.insert(0, '/home/sonata/src/observing_campaign/pypeline/')
 
-# sys.path.insert(0, '/home/sonata/src/hpguppi_daq')
-# import hashpipe_aux
 
 STATUS_STR = "INITIALISING"
 def publish_status_thr(redishash, sleep_interval):
@@ -73,7 +71,7 @@ def import_postproc_module(modulename):
 	return False
 
 def block_until_obsinfo_valid(instance=0):
-	while('INVALID' in hashpipe_aux.get_hashpipe_key_value_str('OBSINFO', instance)):
+	while('INVALID' in hpguppi_monitor.get_hashpipe_key_value_str('OBSINFO', instance)):
 		print('OBSINFO is INVALID, will await VALID...', end='\r')
 		time.sleep(1)
 
@@ -189,6 +187,8 @@ instance_keywords['hnme'] = socket.gethostname()
 instance_keywords['stem'] = None # repopulated after each recording
 instance_keywords['beg'] 	= time.time() # repopulated as each recording begins
 instance_keywords['end'] 	= time.time() # repopulated as each recording ends
+instance_keywords['time'] = [] # repopulated throughout each observation
+instance_keywords['proc'] = [] # repopulated throughout each observation
 
 time.sleep(1)
 
@@ -197,8 +197,8 @@ while(True):
 	# Wait until a recording starts
 	print('\nWaiting while DAQSTATE != recording')
 	for check_idx, check in enumerate([lambda x, y: x != y, lambda x, y: x == y]):
-			while(check(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), 'recording')):
-					# print(hashpipe_aux.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
+			while(check(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), 'recording')):
+					# print(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 					time.sleep(0.25)
 			
 			if check_idx == 0:
@@ -227,7 +227,7 @@ while(True):
 	postproc_outputs['hpguppi'] = [None]
 	attempt = 0
 	while not postproc_outputs['hpguppi'][0] and attempt < 2:
-		postproc_outputs['hpguppi'] = [hashpipe_aux.get_latest_raw_stem_in_dir(hashpipe_aux.get_hashpipe_capture_dir(instance))]
+		postproc_outputs['hpguppi'] = [hpguppi_monitor.get_latest_raw_stem_in_dir(hpguppi_monitor.get_hashpipe_capture_dir(instance))]
 		attempt += 1
 		time.sleep(1)
 
@@ -290,6 +290,7 @@ while(True):
 		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
 		# Run the process
+		checkpoint_time = time.time()
 		try:
 			postproc_outputs[proc] = globals()[proc].run(
 																									arg,
@@ -303,6 +304,8 @@ while(True):
 				print('Bailing on post-processing...')
 				break
 
+		instance_keywords['time'].append(checkpoint_time - time.time()) 
+		instance_keywords['proc'].append(globals()[proc].PROC_NAME)
 		STATUS_STR = "FINISHED " + STATUS_STR
 
 		# Increment through inputs, overflow increment through arguments
