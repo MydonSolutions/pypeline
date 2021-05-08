@@ -17,18 +17,23 @@ def run(argstr, inputs, env):
 
 	patterns = [inputs[0]]
 	if len(inputs) > 1:
-		inputprefix = inputs[0]
-		print(inputprefix)
+		path_head, path_tail = os.path.split(inputs[0])
+		print(path_head)
+		print(path_tail)
 
-		# try take prefix as preceding \..\d+\..*
-		inputprefix = re.match(r'(?P<prefix>^.*)\.\d+\..+$', inputprefix)
-		if inputprefix is not None:
-			inputprefix = inputprefix.group('prefix')
+		# try take stem as preceding \..\d+\..*
+		filestem = re.match(r'(?P<stem>^.*)\.\d+\..+$', path_tail)
+		if filestem is not None:
+			filestem = filestem.group('stem')
 		else:
-			inputprefix = inputs[0]
-			inputprefix = inputprefix[0:inputprefix.find(".")]
+			filestem = path_tail
+			try:
+				last_point = filestem.rindex(".")
+				filestem = filestem[0:last_point]
+			except:
+				pass
 
-		patterns = [inputprefix+extension for extension in inputs[1:]]
+		patterns = [os.path.join(path_head, filestem+extension) for extension in inputs[1:]]
 
 	for pattern in patterns:
 		print(pattern)
