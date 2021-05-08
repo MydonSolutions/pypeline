@@ -17,7 +17,7 @@ def run(argstr, inputs, env):
 
 	patterns = [inputs[0]]
 	if len(inputs) > 1:
-		path_head, path_tail = os.path.split(inputs[0])
+		path_head, path_tail = os.path.split(os.path.normpath(inputs[0]))
 		print(path_head)
 		print(path_tail)
 
