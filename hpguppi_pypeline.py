@@ -304,7 +304,7 @@ while(True):
 				print('Bailing on post-processing...')
 				break
 
-		instance_keywords['time'].append(checkpoint_time - time.time()) 
+		instance_keywords['time'].append(time.time() - checkpoint_time) 
 		instance_keywords['proc'].append(globals()[proc].PROC_NAME)
 		STATUS_STR = "FINISHED " + STATUS_STR
 
