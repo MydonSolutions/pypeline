@@ -77,7 +77,8 @@ def block_until_obsinfo_valid(instance=0):
 
 def replace_instance_keywords(keyword_dict, string):
 	for keyword in keyword_dict.keys():
-		string = string.replace('${}$'.format(keyword), str(keyword_dict[keyword]))
+		keyword_value = str(keyword_dict[keyword]) if not isinstance(keyword_dict[keyword], list) else ' '.join(map(str, keyword_dict[keyword]))
+		string = string.replace('${}$'.format(keyword), keyword_value)
 	return string
 
 def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
