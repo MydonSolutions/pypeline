@@ -213,6 +213,9 @@ while(True):
 		continue
 	postprocs = redishash.getkey('POSTPROC').split(' ')
 	print('Post Processes:\n\t', postprocs)
+	
+	instance_keywords['time'] = [] # repopulated throughout each observation
+	instance_keywords['proc'] = [] # repopulated throughout each observation
 
 	# Reset dictionaries for the post-process run
 	postproc_envvar = {}
