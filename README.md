@@ -110,6 +110,8 @@ are replaced by values held by the primary script.
 - stem: the stem of the latest RAW dump
 - beg: the `time.time()` value produced as DAQSTATE changed to __recording__
 - end: the `time.time()` value produced as DAQSTATE changed from __recording__
+- time: the duration (in seconds) of each preceding stage's run as a list of floats
+- proc: the PROC_NAME of each preceding stage's run as a list of strings
 
 Mutliple words in the ARGUMENT and ENVIRONMENT values are listed separated by spaces, and
 multiple argument-sets are separated by commas (`,`).
