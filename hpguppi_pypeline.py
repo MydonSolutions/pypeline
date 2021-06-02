@@ -42,7 +42,10 @@ class RedisHash:
 #####################################################################
 
 import sys
-sys.path.insert(0, os.getcwd())
+# insert the `hpguppi_pypeline.py` script's directory, so the adjacent
+# postproc_stages can be imported
+script_dir, _ = os.path.split(os.path.realpath(__file__))
+sys.path.insert(0, script_dir)
 
 
 STATUS_STR = "INITIALISING"
