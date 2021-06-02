@@ -2,7 +2,7 @@
 
 Hpguppi_pypeline aims to provide a framework for pipelining the execution of
 modular Python scripts, enabling the creation of a custom post-processing pipeline
-for the data captured by a hashpipe ([hpguppi_daq](https://github.com/realtimeradio/hpguppi_daq))
+for the data captured by a hashpipe ([hpguppi_daq](http://astro.berkeley.edu/~davidm/hpguppi_daq.git))
 instance.
 
 ## Approach
@@ -23,7 +23,7 @@ The python script for a stage is able to provide the names of 3 keys whose value
 pre-processed and passed as argument's to its `run()`: a key for INPUTS, ARGUMENTS
 and ENVIRONMENT variables. Because the values of keys are just strings, they are
 preprocessed by the primary __pypeline__ script and keywords in the strings are replaced
-with dynamic values. In this way the inputs of a stage's `run()` can be the outputs
+with dynamic values. In this way the arguments of a stage's `run()` can be the outputs
 of a previous stage's `run()`: for instance an INPUT key with the value of `hpguppi`
 would be pre-processed to replace `hpguppi` with the single filepath (sans `%d{4}.raw`)
 of the latest RAW file recorded (which is the output of the artificial `hpguppi` stage).
@@ -31,16 +31,16 @@ The primary script also holds some static values which can be received by each s
 `run()`.
 
 The INPUT and ARGUMENT keys's values can be comma delimited to provide a number of inputs
-that must be `run()` for the related stage. The INPUT/ARGUMENT permutations of each
+that must be `run()` for the related stage. The permutations of {INPUT, ARGUMENT} for each
 stage are exhausted by the primary __pypeline__ script.
 
-At the end of each stage the primary stage moves on to the next stage if there is another
+At the end of each stage the primary stage moves on to the next stage, if there is another
 listed in the POSTPROC key's value, otherwise it rewinds up the list of stages to the
 last stage with an input/argument permutation that has not been processed.
 
 Stages can produce more than one output (each `run()` must return a list). The 
 permutations of a stage's input argument is exhaustive combination of the INPUT's
-references to stages' outputs.
+references to stages' outputs (as listed in the value of the stage's PROC_INP_KEY).
 
 Of course, it may be desired that a stage's list of outputs is input all at once, instead
 of sequentially. To this end, and a few other ends, there are syntactical markers on the
@@ -49,14 +49,14 @@ keywords within INPUT values that adjust the pre-processing applied.
 ## Post-processing Pipeline Stages (POSTPROC)
 
 The value of the POSTPROC key space delimits the list of stage-scripts that make up the
-post-processing pipeline. Each stage's name listed names the `postproc_stagename.py` script
+post-processing pipeline. Each stage-name listed names the `postproc_stagename.py` script
 to be loaded from the directory of the primary `hpguppi_pypeline.py` script.
 
 ## Stage Requirements
 
 > An artificial stage is inferred for the hpguppi RAW acquisition with the name 
 > `hpguppi`. Its output is the single filepath (sans `%d{4}.raw`) of the
-> latest RAW file recorded
+> latest RAW file recorded.
 
 Each stage's script is expected to have a `run()` with the following declaration, as
 well as the following 4 variables:
@@ -77,7 +77,7 @@ def run(arg::str, input::list, env::str):
 A convention is in place for stages that spawn detached processes (with
 `subprocess.Popen`): the stage's name should end with an ampersand (`&`) and the `Popen`
 objects should be collected in the stage's `global POPENED`. With these two pieces in
-place, the primary `hpguppi_pypeline.py` script will await the termination of a stage's
+place, the primary __pypeline__ script will await the termination of a stage's
 previous POPENED. *See the mv_& stage for a practical example*
 
 
@@ -89,7 +89,7 @@ by spaces) is the name of a previous stage. It is possible however, to mark a wo
 'verbatim input' by prefixing the word with `&`, in which case only the ampersand is
 removed. Otherwise the occurence of a stage's name is replaced by one of that stage's 
 output values (the output values are exhausted across reruns of the referencing stage). To
-have that stage's name replaced by its last input, the name can be marked with a prefixed 
+have a stage's name replaced by its last input, the name can be marked with a prefixed 
 `^`. To have the name replaced by all of the stage's outputs (all at once), prefix the
 stage's name with `*`.
 
@@ -140,11 +140,11 @@ turboseti, then the static arguments of the candidate filter script
 - `hashpipe_check_status -k PPCNDINP -s "turboseti ^turboseti"`
 - `hashpipe_check_status -k PPCNDINP -s "-r 1 -s 10 -o auto -n bla"`
 
-## Development of a Bespoke Pipeline
+# Development of a Bespoke Pipeline
 
 Development starts with creating a 'stage' in a Python script `postproc_stagename.py`.
 Setup the names of the keys required by creating POSTPROC_ARG/INP/ENV_KEY variables (set
-the value of ARG/ENV_KEY to none if they are to be ignored). Then create the 
+the value of ARG/ENV_KEY to `None` if they are to be ignored). Then create the 
 `run(argstr, inputs, envvar)` function that details the module's process. Finally ensure
 that the redis hash has the necessary keys for the module, with appropriate values.
 
