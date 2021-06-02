@@ -42,7 +42,7 @@ class RedisHash:
 #####################################################################
 
 import sys
-sys.path.insert(0, '/home/sonata/src/observing_campaign/pypeline/')
+sys.path.insert(0, os.getcwd())
 
 
 STATUS_STR = "INITIALISING"
