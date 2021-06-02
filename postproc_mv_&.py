@@ -7,8 +7,10 @@ PROC_ENV_KEY = None
 PROC_ARG_KEY = 'PPMV&ARG'
 PROC_INP_KEY = 'PPMV&INP'
 PROC_NAME = 'mv'
+POPENED = []
 
 def run(argstr, inputs, env):
+	global POPENED
 	if len(inputs) == 0:
 		print('mv requires a single path, and optionally filters for extensions.')
 		return []
@@ -37,7 +39,7 @@ def run(argstr, inputs, env):
 	print(' '.join(cmd))
 	subprocess.run(cmd)
 
-	Popened = []
+	POPENED = []
 	for pattern in patterns:
 		print(pattern)
 
@@ -45,8 +47,8 @@ def run(argstr, inputs, env):
 		for mfile in matchedfiles:
 			cmd = ['mv', mfile, argstr]
 			print(' '.join(cmd))
-			# subprocess.run(cmd)#, env=env)
-			Popened.append(subprocess.Popen(cmd))
-			print('Popened[-1].returncode:', Popened[-1].returncode)
 			
-	return Popened
+			# the move command is detached
+			POPENED.append(subprocess.Popen(cmd))
+			
+	return patterns
