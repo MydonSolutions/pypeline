@@ -70,6 +70,16 @@ def run(arg::str, input::list, env::str):
 - PROC_INP_KEY 	: names the key whose value determines the 2nd argument for `run()`
 - PROC_ENV_KEY 	: names the key whose value determines the 3rd argument for `run()`
 - PROC_NAME 		: the display name of the stage
+- *POPENED* 		: (situational) a list of the Popen objects spawned
+
+### Stages Spawning Detached Processes
+
+A convention is in place for stages that spawn detached processes (with
+`subprocess.Popen`): the stage's name should end with an ampersand (`&`) and the `Popen`
+objects should be collected in the stage's `global POPENED`. With these two pieces in
+place, the primary `hpguppi_pypeline.py` script will await the termination of a stage's
+previous POPENED. *See the mv_& stage for a practical example*
+
 
 ## INPUT Keywords and Modifiers
 
