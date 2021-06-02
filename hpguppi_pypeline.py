@@ -191,6 +191,8 @@ instance_keywords['end'] 	= time.time() # repopulated as each recording ends
 instance_keywords['time'] = [] # repopulated throughout each observation
 instance_keywords['proc'] = [] # repopulated throughout each observation
 
+instance_module_popened = {}
+
 time.sleep(1)
 
 while(True):
@@ -249,6 +251,21 @@ while(True):
 		if proc[0] == '*':
 			proc_critical = False
 			proc = proc[1:]
+
+		# Before reimporting, wait on all previous POPENED
+		if proc[-1] == '&' and proc in instance_module_popened:
+			popened_still_active = False
+			for popenIdx, popen in enumerate(instance_module_popened[proc]):
+				poll_count = 0
+				while popen.poll() is None:
+					popened_still_active = True
+					if poll_count == 0:
+						print('Polling %s.POPENED[%d]' % (proc, popenIdx))
+					poll_count = (poll_count + 1)%10
+					time.sleep(1)
+			if popened_still_active:
+				print('%s\'s %d process(es) are complete.' % (proc, len(instance_module_popened[proc])))
+			print()
 
 		import_postproc_module(proc) # TODO catch non-existent module
 
@@ -311,6 +328,10 @@ while(True):
 		instance_keywords['time'].append(time.time() - checkpoint_time) 
 		instance_keywords['proc'].append(globals()[proc].PROC_NAME)
 		STATUS_STR = "FINISHED " + STATUS_STR
+
+		if proc[-1] == '&':
+			instance_module_popened[proc] = globals()[proc].POPENED
+			print('Captured %s\'s %d detached processes.' % (proc, len(globals()[proc].POPENED)))
 
 		# Increment through inputs, overflow increment through arguments
 		postproc_inputindices[proc] += 1
