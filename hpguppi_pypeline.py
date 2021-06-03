@@ -327,6 +327,7 @@ while(True):
 		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
 		# Run the process
+		print('\n----------------- {:^12s} -----------------'.format(globals()[proc].PROC_NAME))
 		checkpoint_time = time.time()
 		try:
 			postproc_outputs[proc] = globals()[proc].run(
@@ -340,6 +341,8 @@ while(True):
 			if proc_critical:
 				print('Bailing on post-processing...')
 				break
+		
+		print('\n^^^^^^^^^^^^^^^^^ {:^12s} ^^^^^^^^^^^^^^^^^'.format(globals()[proc].PROC_NAME))
 
 		instance_keywords['time'].append(time.time() - checkpoint_time) 
 		instance_keywords['proc'].append(globals()[proc].PROC_NAME)
