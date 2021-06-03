@@ -45,6 +45,7 @@ import sys
 # insert the `hpguppi_pypeline.py` script's directory, so the adjacent
 # postproc_stages can be imported
 script_dir, _ = os.path.split(os.path.realpath(__file__))
+print('postproc_stages.py taken to be in', script_dir)
 sys.path.insert(0, script_dir)
 
 
@@ -62,12 +63,22 @@ reloadFlagDict = {}
 
 def import_postproc_module(modulename):
 	if modulename not in globals(): #modulename not in sys.modules:
-		globals()[modulename] = importlib.import_module('postproc_'+modulename)
+		try:
+			globals()[modulename] = importlib.import_module('postproc_'+modulename)
+		except ModuleNotFoundError:
+			print('Could not find {}.py stage!'.format(os.path.join(script_dir, 'postproc_'+modulename)))
+			return False
+			
 		print('Imported the {} module!'.format(modulename))
 		reloadFlagDict[modulename] = False
 		return True
 	elif reloadFlagDict[modulename]:
-		globals()[modulename] = importlib.reload(globals()[modulename])
+		try:
+			globals()[modulename] = importlib.reload(globals()[modulename])
+		except ModuleNotFoundError:
+			print('Could not find {}.py stage to reload, keeping old load!'.format(os.path.join(script_dir, 'postproc_'+modulename)))
+			return True
+		
 		print('Reloaded the {} module!'.format(modulename))
 		reloadFlagDict[modulename] = False
 		return True
@@ -270,7 +281,9 @@ while(True):
 				print('%s\'s %d process(es) are complete.' % (proc, len(instance_module_popened[proc])))
 			print()
 
-		import_postproc_module(proc) # TODO catch non-existent module
+		if import_postproc_module(proc) is False:
+			print('Skipping post-processing on account of missing stage.')
+			break
 
 		STATUS_STR = "SETUP " + globals()[proc].PROC_NAME
 		envkey = globals()[proc].PROC_ENV_KEY
