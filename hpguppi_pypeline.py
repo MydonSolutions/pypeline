@@ -61,26 +61,26 @@ def publish_status_thr(redishash, sleep_interval):
 
 reloadFlagDict = {}
 
-def import_postproc_module(modulename):
-	if modulename not in globals(): #modulename not in sys.modules:
+def import_postproc_stage(stagename):
+	if stagename not in globals(): #stagename not in sys.modules:
 		try:
-			globals()[modulename] = importlib.import_module('postproc_'+modulename)
+			globals()[stagename] = importlib.import_module('postproc_'+stagename)
 		except ModuleNotFoundError:
-			print('Could not find {}.py stage!'.format(os.path.join(script_dir, 'postproc_'+modulename)))
+			print('Could not find {}.py stage!'.format(os.path.join(script_dir, 'postproc_'+stagename)))
 			return False
 			
-		print('Imported the {} module!'.format(modulename))
-		reloadFlagDict[modulename] = False
+		print('Imported the {} stage!'.format(stagename))
+		reloadFlagDict[stagename] = False
 		return True
-	elif reloadFlagDict[modulename]:
+	elif reloadFlagDict[stagename]:
 		try:
-			globals()[modulename] = importlib.reload(globals()[modulename])
+			globals()[stagename] = importlib.reload(globals()[stagename])
 		except ModuleNotFoundError:
-			print('Could not find {}.py stage to reload, keeping old load!'.format(os.path.join(script_dir, 'postproc_'+modulename)))
+			print('Could not find {}.py stage to reload, keeping old load!'.format(os.path.join(script_dir, 'postproc_'+stagename)))
 			return True
 		
-		print('Reloaded the {} module!'.format(modulename))
-		reloadFlagDict[modulename] = False
+		print('Reloaded the {} stage!'.format(stagename))
+		reloadFlagDict[stagename] = False
 		return True
 	return False
 
@@ -107,7 +107,7 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 	for symbol in input_template_symbols:
 		if symbol in postproc_outputs:
 			if len(postproc_outputs[symbol]) == 0:
-				print('Module {} produced zero outputs.'.format(symbol))
+				print('Stage {} produced zero outputs.'.format(symbol))
 				return False
 			input_values[symbol] = postproc_outputs[symbol]
 		elif symbol[0] in ['^', '&'] or (symbol[0] in ['*'] and symbol[1:] in postproc_outputs):
@@ -118,7 +118,7 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 				input_values[symbol] = [symbol[1:]]
 			elif symbol[0] == '*':
 				if len([symbol[1:]]) == 0:
-					print('Module {} produced zero outputs.'.format(symbol))
+					print('Stage {} produced zero outputs.'.format(symbol))
 					return False
 				print('Detected exhaustive input \"{}\"'.format(symbol))
 				input_values[symbol] = [postproc_outputs[symbol[1:]]] # wrap in list to treat as single value
@@ -205,7 +205,7 @@ instance_keywords['end'] 	= time.time() # repopulated as each recording ends
 instance_keywords['time'] = [] # repopulated throughout each observation
 instance_keywords['proc'] = [] # repopulated throughout each observation
 
-instance_module_popened = {}
+instance_stage_popened = {}
 
 time.sleep(1)
 
@@ -267,9 +267,9 @@ while(True):
 			proc = proc[1:]
 
 		# Before reimporting, wait on all previous POPENED
-		if proc[-1] == '&' and proc in instance_module_popened:
+		if proc[-1] == '&' and proc in instance_stage_popened:
 			popened_still_active = False
-			for popenIdx, popen in enumerate(instance_module_popened[proc]):
+			for popenIdx, popen in enumerate(instance_stage_popened[proc]):
 				poll_count = 0
 				while popen.poll() is None:
 					popened_still_active = True
@@ -278,10 +278,10 @@ while(True):
 					poll_count = (poll_count + 1)%10
 					time.sleep(1)
 			if popened_still_active:
-				print('%s\'s %d process(es) are complete.' % (proc, len(instance_module_popened[proc])))
+				print('%s\'s %d process(es) are complete.' % (proc, len(instance_stage_popened[proc])))
 			print()
 
-		if import_postproc_module(proc) is False:
+		if import_postproc_stage(proc) is False:
 			print('Skipping post-processing on account of missing stage.')
 			break
 
@@ -346,7 +346,7 @@ while(True):
 		STATUS_STR = "FINISHED " + STATUS_STR
 
 		if proc[-1] == '&':
-			instance_module_popened[proc] = globals()[proc].POPENED
+			instance_stage_popened[proc] = globals()[proc].POPENED
 			print('Captured %s\'s %d detached processes.' % (proc, len(globals()[proc].POPENED)))
 
 		# Increment through inputs, overflow increment through arguments
