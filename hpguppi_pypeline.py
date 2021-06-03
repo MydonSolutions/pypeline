@@ -82,7 +82,7 @@ def import_postproc_stage(stagename):
 		print('Reloaded the {} stage!'.format(stagename))
 		reloadFlagDict[stagename] = False
 		return True
-	return False
+	return None
 
 def block_until_obsinfo_valid(instance=0):
 	while('INVALID' in hpguppi_monitor.get_hashpipe_key_value_str('OBSINFO', instance)):
