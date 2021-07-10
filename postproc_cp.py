@@ -1,6 +1,5 @@
 import subprocess
 import os
-import glob
 import re
 
 PROC_ENV_KEY = None
@@ -38,12 +37,8 @@ def run(argstr, inputs, env):
 	subprocess.run(cmd)
 
 	for pattern in patterns:
-		print(pattern)
-
-		matchedfiles = glob.glob(pattern)
-		for mfile in matchedfiles:
-			cmd = ['cp', mfile, argstr]
-			print(' '.join(cmd))
-			subprocess.run(cmd)#, env=env)
+		cmd = ['cp', pattern, argstr]
+		print(' '.join(cmd))
+		subprocess.run(cmd)#, env=env)
 	
 	return patterns
