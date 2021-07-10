@@ -110,7 +110,9 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 				print('Stage {} produced zero outputs.'.format(symbol))
 				return False
 			input_values[symbol] = postproc_outputs[symbol]
-		elif symbol[0] in ['^', '&'] or (symbol[0] in ['*'] and symbol[1:] in postproc_outputs):
+		elif len(symbol) > 1 and (symbol[0] in ['^', '&'] 
+															or (symbol[0] in ['*'] and symbol[1:] in postproc_outputs)
+															):
 			if symbol[0] == '^' and symbol[1:] in postproc_lastinput:
 				input_values[symbol] = postproc_lastinput[symbol[1:]]
 			elif symbol[0] == '&':
