@@ -225,6 +225,9 @@ while(True):
 	instance_keywords['end'] = time.time()
 
 	postproc_str = redishash.getkey('POSTPROC')
+	if postproc_str is None:
+		print('POSTPROC key is not found, ensure the Redis Gateway for instance %d is running. Not post-processing.'% instance )
+		continue
 	if 'skip' in postproc_str[0:4]:
 		print('POSTPROC key begins with skip, not post-processing.')
 		continue
