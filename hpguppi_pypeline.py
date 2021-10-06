@@ -185,6 +185,10 @@ def print_proc_dict_progress(proc, inp_tmp_dict, inp_tmpidx_dict, inp_dict, inpi
 		)
 	)
 
+def fetch_fill_key_dict(keys_dict):
+	for key in keys_dict.keys():
+		keys_dict[key] = redishash.getkey(key)
+
 parser = argparse.ArgumentParser(description='Monitors the observations of an Hpguppi_daq instance '
                                              'starting rawspec and then turbo_seti after each observation.',
              formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -335,6 +339,8 @@ while(True):
 		env = postproc_envvar[proc]
 		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
+		if hasattr(globals()[proc], 'PROC_STATUS_KEYS'):
+			fetch_fill_key_dict(globals()[proc].PROC_STATUS_KEYS)
 		# Run the process
 		print('\n----------------- {:^12s} -----------------'.format(globals()[proc].PROC_NAME))
 		checkpoint_time = time.time()
