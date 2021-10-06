@@ -236,7 +236,7 @@ while(True):
 	if 'skip' in postproc_str[0:4]:
 		print('POSTPROC key begins with skip, not post-processing.')
 		continue
-	postprocs = redishash.getkey('POSTPROC').split(' ')
+	postprocs = postproc_str.split(' ')
 	print('Post Processes:\n\t', postprocs)
 	
 	instance_keywords['time'] = [] # repopulated throughout each observation
