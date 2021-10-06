@@ -35,17 +35,33 @@ def run(argstr, inputs, env):
 
 		patterns = [os.path.join(path_head, filestem+extension) for extension in inputs[1:]]
 
-	cmd = ['mkdir', '-p', argstr]
+	parser = argparse.ArgumentParser(description='Move files in a detached process')
+	parser.add_argument('destination', type=str, help='The destination directory for the move.')
+	parser.add_argument('-i', type=int, required=False,
+			help='The instance ID (use $inst$) used as the numa-memory to bind to')
+	parser.add_argument('-c', type=int, required=False,
+			help='The cpu-core to numa-bind to')
+	parser.add_argument('-m', type=int, required=False,
+			help='The memory-node to numa-bind to')
+
+	args = parser.parse_args(argstr.split(' '))
+
+	cmd = ['mkdir', '-p', args.destination]
 	print(' '.join(cmd))
 	subprocess.run(cmd)
 
+	numactl = []
+	if args.i is not None and args.c is not None:
+		numactl = ['numactl', '-C', str(args.c), '-m', str(args.m)]
+
+
 	POPENED = []
-	for pattern in patterns:
+			cmd = numactl + ['mv', mfile, args.destination]
 		print(pattern)
 
 		matchedfiles = glob.glob(pattern)
 		for mfile in matchedfiles:
-			cmd = ['mv', mfile, argstr]
+			cmd = numactl + ['mv', mfile, args.destination]
 			print(' '.join(cmd))
 			
 			# the move command is detached
