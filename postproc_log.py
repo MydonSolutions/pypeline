@@ -1,12 +1,14 @@
 import csv
 from datetime import datetime
 import argparse
+import redis
 import pandas as pd
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = 'PPLOGARG'
 PROC_INP_KEY = 'PPLOGINP'
 PROC_NAME = 'log'
+PROC_STATUS_KEYS = {'OBSNDROP': None}
 
 def run(argstr, inputs, env):
     parser = argparse.ArgumentParser(description='Log certain info')
@@ -48,6 +50,8 @@ def run(argstr, inputs, env):
         ]
         if args.t is not None and args.p is not None:
             row.append(''.join([args.p[i]+'=%0.4f' % args.t[i] for i in range(len(args.t))]))
+        for key, val in PROC_STATUS_KEYS.items():
+            row.append('{}={}'.format(key, str(val)))
         csvwr.writerow(row)
 
     return []
