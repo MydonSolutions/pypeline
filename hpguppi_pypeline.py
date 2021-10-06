@@ -33,12 +33,17 @@ class RedisHash:
 	def setkey(self, keyvaluestr):
 		self.redis_obj.publish(self.set_chan, keyvaluestr)
 
-	def getkey(self, keystr):
-		ret = self.redis_obj.hget(self.get_chan, keystr)
-		if ret is None:
-			return None
-		else:
-			return ret.decode()
+	def getkey(self, keystr, retry_count=5, retry_period_ms=50):
+		ret = None
+		while ret is None and retry_count > 0:
+			try:
+				ret = self.redis_obj.hget(self.get_chan, keystr).decode()
+			except:
+				time.sleep(retry_period_ms/1000)
+				pass
+			retry_count -= 1
+
+		return ret
 #####################################################################
 
 import sys
