@@ -27,7 +27,47 @@ def run(argstr, inputs, envvar):
 
 	env = os.environ.copy()
 	if envvar is not None:
-		for variablevalues in envvar.split(' '):
+		envvar = envvar.split(' ')
+		if '--numa' in envvar:
+			numa_argindex = envvar.index('--numa')
+			try:
+				cpubind = envvar[numa_argindex+1]
+				membind = int(envvar[numa_argindex+2]) # safe to assume that this is node number
+			except:
+				print('Error parsing the --numa args:', envvar[numa_argindex:])
+				cpubind = None
+
+			if cpubind[0] in ['-', '+']:
+				# relative CPU binding
+				cpu_info = subprocess.run('lscpu', capture_output=True).stdout.decode().strip()
+				try:
+					m = re.search(r'CPU\(s\):\s*(\d+)', cpu_info)
+					cores_per_cpu = int(m.group(1))
+				except:
+					print('Error trying to get the cpu core count.')
+					cpubind = None
+				try:
+					m = re.search(r'NUMA node\(s\):\s*(\d+)', cpu_info)
+					cores_per_numa = cores_per_cpu//int(m.group(1))
+				except:
+					print('Error trying to get the numa core count.')
+					cpubind = None
+				
+				if cpubind and cpubind[0] == '-':
+					cpubind = (membind+1)*cores_per_numa - int(cpubind[1:])
+				elif cpubind and cpubind[0] == '+':
+					cpubind = membind*cores_per_numa + int(cpubind[1:])
+			else:
+				cpubind = int(cpubind)
+
+			if cpubind:
+				cmd = ['numactl', '--physcpubind=%d'%(cpubind), '--membind=%d'%(membind)] + cmd
+			
+			envvar.pop(numa_argindex)
+			envvar.pop(numa_argindex)
+			envvar.pop(numa_argindex)
+			
+		for variablevalues in envvar:
 			print(variablevalues)
 			if ':' in variablevalues:
 				pair = variablevalues.split(':')
@@ -42,3 +82,11 @@ def run(argstr, inputs, envvar):
 		rawspec_outputstem = os.path.join(rawargs[rawargs.index('-d')+1], os.path.basename(inputpath))
 	
 	return glob.glob(rawspec_outputstem+'*.fil')
+
+if __name__ == '__main__':
+    run('-f 262144 -t 2 -I 1.0 -d /mnt/buf0/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa -4 0')
+    run('-f 262144 -t 2 -I 1.0 -d /mnt/buf1/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa -4 1')
+    run('-f 262144 -t 2 -I 1.0 -d /mnt/buf0/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa +4 0')
+    run('-f 262144 -t 2 -I 1.0 -d /mnt/buf0/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa +4 1')
+    run('-f 262144 -t 2 -I 1.0 -d /mnt/buf0/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa 4 0')
+    run('-f 262144 -t 2 -I 1.0 -d /mnt/buf0/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa 4 1')
