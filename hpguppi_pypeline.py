@@ -281,17 +281,14 @@ while(True):
 		# Before reimporting, wait on all previous POPENED
 		if proc[-1] == '&' and proc in instance_stage_popened:
 			STATUS_STR = "POLL LAST DETACHED " + globals()[proc].PROC_NAME
-			popened_still_active = False
 			for popenIdx, popen in enumerate(instance_stage_popened[proc]):
 				poll_count = 0
 				while popen.poll() is None:
-					popened_still_active = True
 					if poll_count == 0:
 						print('Polling previous %s stage\'s detached process for completion (#%d)' % (proc, popenIdx))
 					poll_count = (poll_count + 1)%10
 					time.sleep(1)
-			if popened_still_active:
-				print('%s\'s %d process(es) are complete.' % (proc, len(instance_stage_popened[proc])))
+			print('%s\'s %d process(es) are complete.' % (proc, len(instance_stage_popened[proc])))
 			print()
 
 		if import_postproc_stage(proc) is False:

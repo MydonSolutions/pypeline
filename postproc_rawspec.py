@@ -1,6 +1,7 @@
 import subprocess
 import os
 import glob
+import re
 
 PROC_ENV_KEY = 'PPRWSENV'
 PROC_ARG_KEY = 'PPRWSARG'
@@ -74,7 +75,8 @@ def run(argstr, inputs, envvar):
 				print('Environment variable-value pair:', pair)
 				env[pair[0]] = pair[1]
 	
-	print(' '.join(cmd))
+	# print(' '.join(cmd))
+	print(cmd)
 	subprocess.run(cmd, env=env)
 
 	rawspec_outputstem = inputpath
