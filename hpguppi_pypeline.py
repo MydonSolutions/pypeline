@@ -23,21 +23,47 @@ class RedisHash:
 		self.redis_obj = redis.Redis(redishost)
 
 		REDISSETGW = Template('hashpipe://${host}/${inst}/set')
-		self.set_chan = REDISSETGW.substitute(host=hostname, inst=instance)
+		self.set_hashpipe_chan = REDISSETGW.substitute(host=hostname, inst=instance)
 
 		REDISGETGW = Template('hashpipe://${host}/${inst}/status')
-		self.get_chan = REDISGETGW.substitute(host=hostname, inst=instance)
-		print(self.set_chan)
-		print(self.get_chan)
+		self.get_hashpipe_chan = REDISGETGW.substitute(host=hostname, inst=instance)
+		print(self.set_hashpipe_chan)
+		print(self.get_hashpipe_chan)
+
+		REDISHASH = Template('postprocpype://${host}/${inst}/status')
+		self.postproc_hash = REDISHASH.substitute(host=hostname, inst=instance)
+		existing_keys = list(self.redis_obj.hgetall(self.postproc_hash).keys())
+		if len(existing_keys) > 0:
+			self.redis_obj.hdel(self.postproc_hash, *existing_keys) # empty the hash
+		print(self.postproc_hash)
+
+		self.postproc_chan = 'postprocpype:///set'
+		self.redis_pubsub = self.redis_obj.pubsub()
+		self.redis_pubsub.subscribe(self.postproc_chan)
 
 	def setkey(self, keyvaluestr):
-		self.redis_obj.publish(self.set_chan, keyvaluestr)
+		self.redis_obj.publish(self.set_hashpipe_chan, keyvaluestr)
 
 	def getkey(self, keystr, retry_count=5, retry_period_ms=50):
 		ret = None
 		while ret is None and retry_count > 0:
 			try:
-				ret = self.redis_obj.hget(self.get_chan, keystr).decode()
+				ret = self.redis_obj.hget(self.get_hashpipe_chan, keystr).decode()
+			except:
+				time.sleep(retry_period_ms/1000)
+				pass
+			retry_count -= 1
+
+		return ret
+
+	def setpostprockey(self, key, value):
+		self.redis_obj.hset(self.postproc_hash, key, value)
+
+	def getpostprockey(self, keystr, retry_count=5, retry_period_ms=50):
+		ret = None
+		while ret is None and retry_count > 0:
+			try:
+				ret = self.redis_obj.hget(self.postproc_hash, keystr).decode()
 			except:
 				time.sleep(retry_period_ms/1000)
 				pass
@@ -59,9 +85,15 @@ def publish_status_thr(redishash, sleep_interval):
 		global STATUS_STR
 		ellipsis_count = 0
 		while(1):
-			time.sleep(sleep_interval)
-			redishash.setkey('PPSTATUS=%s'%(STATUS_STR+'.'*int(ellipsis_count)))
-			redishash.setkey('PPPULSE=%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
+			# time.sleep(sleep_interval)
+			while(1):
+				message = redishash.redis_pubsub.get_message(timeout=sleep_interval)
+				if message is None or not isinstance(message.get('data'), bytes):
+					break
+				for keyvaluestr in message.get('data').decode().split('\n'):
+					redishash.setpostprockey(*(keyvaluestr.split('=')))
+			redishash.setpostprockey('STATUS', '%s'%(STATUS_STR+'.'*int(ellipsis_count)))
+			redishash.setpostprockey('PULSE', '%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
 			ellipsis_count = (ellipsis_count+1)%4
 
 reloadFlagDict = {}
@@ -159,7 +191,7 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 
 def fetch_proc_key_value(key, proc, value_dict, index_dict, redishash, value_delimiter):
 	if (proc not in value_dict) and (key is not None):
-		value_dict[proc] = redishash.getkey(key)
+		value_dict[proc] = redishash.getpostprockey(key)
 		if value_dict[proc] is None:
 			print('Post-Process {}: missing key \'{}\', bailing.'.format(proc, key))
 			return False
@@ -186,6 +218,10 @@ def print_proc_dict_progress(proc, inp_tmp_dict, inp_tmpidx_dict, inp_dict, inpi
 	)
 
 def fetch_fill_key_dict(keys_dict):
+	'''
+		Fetch the values for the keys of a dictionary from the 
+		hashpipe://.../status Redis Hash.
+	'''
 	for key in keys_dict.keys():
 		keys_dict[key] = redishash.getkey(key)
 
@@ -217,6 +253,7 @@ instance_keywords['proc'] = [] # repopulated throughout each observation
 instance_stage_popened = {}
 
 time.sleep(1)
+postproc_str = redishash.setpostprockey('#MODULES', 'skip')
 
 while(True):
 	STATUS_STR = "WAITING"
@@ -233,12 +270,12 @@ while(True):
 					print('\nWaiting while DAQSTATE == recording')
 	instance_keywords['end'] = time.time()
 
-	postproc_str = redishash.getkey('POSTPROC')
+	postproc_str = redishash.getpostprockey('#MODULES')
 	if postproc_str is None:
-		print('POSTPROC key is not found, ensure the Redis Gateway for instance %d is running. Not post-processing.'% instance )
+		print('#MODULES key is not found, ensure the Redis Gateway for instance %d is running. Not post-processing.'% instance )
 		continue
 	if 'skip' in postproc_str[0:4]:
-		print('POSTPROC key begins with skip, not post-processing.')
+		print('#MODULES key begins with skip, not post-processing.')
 		continue
 	postprocs = postproc_str.split(' ')
 	print('Post Processes:\n\t', postprocs)
@@ -259,7 +296,7 @@ while(True):
 	postproc_outputs['hpguppi'] = [None]
 	attempt = 0
 	while not postproc_outputs['hpguppi'][0] and attempt < 2:
-		postproc_outputs['hpguppi'] = [hpguppi_monitor.get_latest_raw_stem_in_dir(hpguppi_monitor.get_hashpipe_capture_dir(instance))]
+		postproc_outputs['hpguppi'] = [hpguppi_monitor.get_latest_stem_in_dir(hpguppi_monitor.get_hashpipe_capture_dir(instance))]
 		attempt += 1
 		time.sleep(1)
 

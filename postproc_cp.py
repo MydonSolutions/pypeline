@@ -3,8 +3,8 @@ import os
 import re
 
 PROC_ENV_KEY = None
-PROC_ARG_KEY = 'PPCPARG'
-PROC_INP_KEY = 'PPCPINP'
+PROC_ARG_KEY = 'COPYARG'
+PROC_INP_KEY = 'COPYINP'
 PROC_NAME = 'cp'
 
 def run(argstr, inputs, env):

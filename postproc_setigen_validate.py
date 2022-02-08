@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 
 PROC_ENV_KEY = None
-PROC_ARG_KEY = 'PPSGVARG'
-PROC_INP_KEY = 'PPSGVINP'
+PROC_ARG_KEY = 'SGVALARG'
+PROC_INP_KEY = 'SGVALINP'
 PROC_NAME = 'setigen_validate'
 
 def run(argstr, inputs, envvar):

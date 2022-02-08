@@ -5,8 +5,8 @@ import os
 import glob
 
 PROC_ENV_KEY = None
-PROC_ARG_KEY = 'PPCNDARG'
-PROC_INP_KEY = 'PPCNDINP'
+PROC_ARG_KEY = 'CANDIARG'
+PROC_INP_KEY = 'CANDIINP'
 PROC_NAME = 'candifilplot'
 
 def run(argstr, inputs, envvar):

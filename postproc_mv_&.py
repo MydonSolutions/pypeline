@@ -6,10 +6,11 @@ import re
 import time
 
 PROC_ENV_KEY = None
-PROC_ARG_KEY = 'PPMV&ARG'
-PROC_INP_KEY = 'PPMV&INP'
+PROC_ARG_KEY = 'MOVE&ARG'
+PROC_INP_KEY = 'MOVE&INP'
 PROC_NAME = 'mv'
 POPENED = []
+
 POPENED_TIMES = []
 PROC_STATUS_KEYS = {'PROJID': None}
 PROC_LOCAL_KEYWORD_STATUS_KEY_MAP = {'proj': 'PROJID'}
@@ -51,10 +52,12 @@ def run(argstr, inputs, env):
 
 	args = parser.parse_args(argstr.split(' '))
 
-	for (key, status_key) in PROC_LOCAL_KEYWORD_STATUS_KEY_MAP:
+	for (key, status_key) in PROC_LOCAL_KEYWORD_STATUS_KEY_MAP.items():
 		args.destination = args.destination.replace('${}$'.format(key), PROC_STATUS_KEYS[status_key])
 
-	cmd = ['mkdir', '-p', args.destination]
+	dest_dir, dest_filename = os.path.split(os.path.normpath(args.destination))
+
+	cmd = ['mkdir', '-p', dest_dir]
 	print(' '.join(cmd))
 	subprocess.run(cmd)
 

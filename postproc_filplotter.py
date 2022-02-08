@@ -7,7 +7,7 @@ from blimpy import Waterfall
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = None
-PROC_INP_KEY = 'PPFLTINP'
+PROC_INP_KEY = 'FLPLTINP'
 PROC_NAME = 'filplotter'
 
 def run(argstr, inputs, envvar):

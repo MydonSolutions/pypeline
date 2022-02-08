@@ -5,8 +5,8 @@ import redis
 import pandas as pd
 
 PROC_ENV_KEY = None
-PROC_ARG_KEY = 'PPLOGARG'
-PROC_INP_KEY = 'PPLOGINP'
+PROC_ARG_KEY = 'LOGARG'
+PROC_INP_KEY = 'LOGINP'
 PROC_NAME = 'log'
 PROC_STATUS_KEYS = {'OBSNDROP': None}
 

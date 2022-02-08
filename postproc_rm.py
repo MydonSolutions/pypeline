@@ -5,7 +5,7 @@ import re
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = None
-PROC_INP_KEY = 'PPRMINP'
+PROC_INP_KEY = 'REMVINP'
 PROC_NAME = 'rm'
 
 def run(argstr, inputs, env):

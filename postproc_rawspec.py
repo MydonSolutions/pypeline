@@ -3,9 +3,9 @@ import os
 import glob
 import re
 
-PROC_ENV_KEY = 'PPRWSENV'
-PROC_ARG_KEY = 'PPRWSARG'
-PROC_INP_KEY = 'PPRWSINP'
+PROC_ENV_KEY = 'RAWSPENV'
+PROC_ARG_KEY = 'RAWSPARG'
+PROC_INP_KEY = 'RAWSPINP'
 PROC_NAME = 'RAWSPEC'
 
 def run(argstr, inputs, envvar):

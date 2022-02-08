@@ -1,17 +1,17 @@
 import subprocess
 import os
 
-PROC_ENV_KEY = 'PPTBSENV'
-PROC_ARG_KEY = 'PPTBSARG'
-PROC_INP_KEY = 'PPTBSINP'
+PROC_ENV_KEY = 'TRBSTENV'
+PROC_ARG_KEY = 'TRBSTARG'
+PROC_INP_KEY = 'TRBSTINP'
 PROC_NAME = 'turboSETI'
 
 def run(argstr, inputs, envvar):
 	if len(inputs) == 0:
-		print('Rawspec requires a single input path.')
+		print('Turboseti requires a single input path.')
 		return []
 	elif len(inputs) > 1:
-		print('Rawspec requires a single input path. Ignoring {}'.format(inputs[1:]))
+		print('Turboseti requires a single input path. Ignoring {}'.format(inputs[1:]))
 
 	inputpath = inputs[0]
 
