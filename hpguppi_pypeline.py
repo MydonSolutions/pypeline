@@ -258,16 +258,16 @@ postproc_str = redishash.setpostprockey('#MODULES', 'skip')
 while(True):
 	STATUS_STR = "WAITING"
 	# Wait until a recording starts
-	print('\nWaiting while DAQSTATE != recording')
-	for check_idx, check in enumerate([lambda x, y: x != y, lambda x, y: x == y]):
-			while(check(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), 'recording')):
+	print('\nWaiting while DAQSTATE == idling')
+	for check_idx, check in enumerate([lambda x, y: x == y, lambda x, y: x != y]):
+			while(check(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), 'idling')):
 					# print(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
 					time.sleep(0.25)
 			
 			if check_idx == 0:
 					instance_keywords['beg'] = time.time()
 					# Wait until the recording ends
-					print('\nWaiting while DAQSTATE == recording')
+					print('\nWaiting while DAQSTATE != idling')
 	instance_keywords['end'] = time.time()
 
 	postproc_str = redishash.getpostprockey('#MODULES')
