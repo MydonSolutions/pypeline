@@ -12,8 +12,14 @@ PROC_NAME = 'mv'
 POPENED = []
 
 POPENED_TIMES = []
-PROC_STATUS_KEYS = {'PROJID': None}
-PROC_LOCAL_KEYWORD_STATUS_KEY_MAP = {'proj': 'PROJID'}
+PROC_STATUS_KEYS = {
+  'PROJID': None,
+  'OBSSTEM': None,
+}
+PROC_LOCAL_KEYWORD_STATUS_KEY_MAP = {
+  'proj': 'PROJID',
+  'obsstem': 'OBSSTEM'
+}
 
 def run(argstr, inputs, env):
   global POPENED, POPENED_TIMES
@@ -49,6 +55,8 @@ def run(argstr, inputs, env):
       help='The cpu-core to numa-bind to')
   parser.add_argument('-m', type=int, required=False,
       help='The memory-node to numa-bind to')
+  parser.add_argument('--sync', action='store_true', required=False,
+      help='Synchronously move.')
 
   args = parser.parse_args(argstr.split(' '))
 
@@ -84,17 +92,22 @@ def run(argstr, inputs, env):
 
     matchedfiles = glob.glob(pattern)
     for mfile in matchedfiles:
-      cmd = numactl + ['mv', mfile, args.destination]
+      cmd = numactl + ['mv', mfile, destination_normed]
       print('\t', ' '.join(cmd))
       
-      # the move command is detached
-      POPENED.append(subprocess.Popen(cmd))
+      if(args.sync):
+        print('\tSynchronous move')
+        subprocess.run(cmd)
+      else:
+        # the move command is detached
+        POPENED.append(subprocess.Popen(cmd))
       
   return patterns
 
 if __name__ == '__main__':
+  PROC_STATUS_KEYS['PROJID'] = 'bogus_proj'
   run(
-    "-i 0 /home/sonata/corr_data/bogus_stem/bogus_hostname/bogus_stem_0.uvh5",
+    "-i 0 /home/sonata/corr_data/bogus_stem/bogus_hostname/bogus_stem_0.uvh5 --sync",
     ['bogus_stem'],
     None
   )
