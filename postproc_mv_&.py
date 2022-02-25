@@ -55,7 +55,10 @@ def run(argstr, inputs, env):
 	for (key, status_key) in PROC_LOCAL_KEYWORD_STATUS_KEY_MAP.items():
 		args.destination = args.destination.replace('${}$'.format(key), PROC_STATUS_KEYS[status_key])
 
-	dest_dir, dest_filename = os.path.split(os.path.normpath(args.destination))
+	destination_normed = os.path.normpath(args.destination)
+	if(args.destination[-1] == '/'): # normpath removes trailing '/' which split needs to identify path as a directory
+		destination_normed += '/'
+	dest_dir, dest_filename = os.path.split(destination_normed)
 
 	cmd = ['mkdir', '-p', dest_dir]
 	print(' '.join(cmd))
@@ -81,7 +84,7 @@ def run(argstr, inputs, env):
 
 		matchedfiles = glob.glob(pattern)
 		for mfile in matchedfiles:
-			cmd = numactl + ['mv', mfile, args.destination]
+			cmd = numactl + ['mv', mfile, destination_normed]
 			print('\t', ' '.join(cmd))
 			
 			# the move command is detached
