@@ -32,10 +32,7 @@ class RedisHash:
 
 		REDISHASH = Template('postprocpype://${host}/${inst}/status')
 		self.postproc_hash = REDISHASH.substitute(host=hostname, inst=instance)
-		existing_keys = list(self.redis_obj.hgetall(self.postproc_hash).keys())
-		if len(existing_keys) > 0:
-			self.redis_obj.hdel(self.postproc_hash, *existing_keys) # empty the hash
-		print(self.postproc_hash)
+		self.clearpostprockeys()
 
 		self.postproc_chan = 'postprocpype:///set'
 		self.redis_pubsub = self.redis_obj.pubsub()
@@ -70,6 +67,12 @@ class RedisHash:
 			retry_count -= 1
 
 		return ret
+
+	def clearpostprockeys(self, exclusion_list=[]):
+		all_keys = map(bytes.decode, self.redis_obj.hgetall(self.postproc_hash).keys())
+		keys_to_clear = [key for key in all_keys if key not in exclusion_list]
+		if len(keys_to_clear) > 0:
+			self.redis_obj.hdel(self.postproc_hash, *keys_to_clear)
 #####################################################################
 
 import sys
@@ -83,6 +86,7 @@ sys.path.insert(0, script_dir)
 STATUS_STR = "INITIALISING"
 def publish_status_thr(redishash, sleep_interval):
 		global STATUS_STR
+		previous_stage_list = redishash.getpostprockey("#MODULES")
 		ellipsis_count = 0
 		while(1):
 			# time.sleep(sleep_interval)
@@ -92,6 +96,27 @@ def publish_status_thr(redishash, sleep_interval):
 					break
 				for keyvaluestr in message.get('data').decode().split('\n'):
 					redishash.setpostprockey(*(keyvaluestr.split('=')))
+			
+			stage_list = redishash.getpostprockey("#MODULES")
+			if (stage_list is not None and 
+				stage_list != previous_stage_list and STATUS_STR == "WAITING"
+			):
+				# clear unused redis-hash keys
+				previous_stage_list = stage_list
+				rediskeys_in_use = ['#MODULES', 'STATUS', 'PULSE']
+				for proc in stage_list.split(' '):
+					if proc != 'skip' and (proc in globals() or import_postproc_stage(proc)):
+						key = globals()[proc].PROC_ENV_KEY
+						if key is not None:
+							rediskeys_in_use.append(key)
+						key = globals()[proc].PROC_INP_KEY
+						if key is not None:
+							rediskeys_in_use.append(key)
+						key = globals()[proc].PROC_ARG_KEY
+						if key is not None:
+							rediskeys_in_use.append(key)
+				redishash.clearpostprockeys(exclusion_list = rediskeys_in_use)
+
 			redishash.setpostprockey('STATUS', '%s'%(STATUS_STR+'.'*int(ellipsis_count)))
 			redishash.setpostprockey('PULSE', '%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
 			ellipsis_count = (ellipsis_count+1)%4
