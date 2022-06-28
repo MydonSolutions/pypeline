@@ -83,7 +83,7 @@ def run(argstr, inputs, envvar):
 	if '-d' in rawargs:
 		rawspec_outputstem = os.path.join(rawargs[rawargs.index('-d')+1], os.path.basename(inputpath))
 	
-	return glob.glob(rawspec_outputstem+'*.fil')
+	return glob.glob(rawspec_outputstem+'*')
 
 if __name__ == '__main__':
     run('-f 262144 -t 2 -I 1.0 -d /mnt/buf0/rawspec/bogus', ['bogus'], 'CUDA_VISIBLE_DEVICES:$inst$ --numa -4 0')
