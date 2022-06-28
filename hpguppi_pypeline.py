@@ -4,8 +4,8 @@ import argparse
 import time
 from datetime import datetime
 import os
+import re
 import glob
-import redis
 import socket
 from string import Template
 import argparse
@@ -321,7 +321,13 @@ while(True):
 	postproc_outputs['hpguppi'] = [None]
 	attempt = 0
 	while not postproc_outputs['hpguppi'][0] and attempt < 2:
-		postproc_outputs['hpguppi'] = [hpguppi_monitor.get_latest_stem_in_dir(hpguppi_monitor.get_hashpipe_capture_dir(instance))]
+		filedir = hpguppi_monitor.get_hashpipe_capture_dir(instance)
+		obsstem = redishash.getkey('OBSSTEM')
+		if obsstem is not None:
+			filepath_stem = os.path.join(filedir, obsstem)
+		else:
+			filepath_stem = hpguppi_monitor.get_latest_stem_in_dir(filedir)
+		postproc_outputs['hpguppi'] = [filepath_stem]
 		attempt += 1
 		time.sleep(1)
 
@@ -330,6 +336,10 @@ while(True):
 		continue
 
 	instance_keywords['stem'] = os.path.basename(postproc_outputs['hpguppi'][0])
+	postproc_outputs['hpguppi'] = [
+		re.match(r'(.*?)(\.\d{4})?\..+$', os.path.abspath(filepath)).group(1)
+		for filepath in glob.glob('{}*'.format(postproc_outputs['hpguppi'][0]))
+	]
 
 	procindex = 0
 
