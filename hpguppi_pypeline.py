@@ -335,11 +335,13 @@ while(True):
 		print('No captured RAW data found for post-processing.')
 		continue
 
-	instance_keywords['stem'] = os.path.basename(postproc_outputs['hpguppi'][0])
-	postproc_outputs['hpguppi'] = [
-		re.match(r'(.*?)(\.\d{4})?\..+$', os.path.abspath(filepath)).group(1)
-		for filepath in glob.glob('{}*'.format(postproc_outputs['hpguppi'][0]))
-	]
+	hpguppi_obsstem_path = postproc_outputs['hpguppi'][0]
+	instance_keywords['stem'] = os.path.basename(hpguppi_obsstem_path)
+	postproc_outputs['hpguppi'] = []
+	for filepath in glob.glob('{}*'.format(hpguppi_obsstem_path)):
+		hpguppi_output_stempath = re.match(r'(.*?)(\.\d{4})?\..+$', os.path.abspath(filepath)).group(1)
+		if hpguppi_output_stempath not in postproc_outputs['hpguppi']:
+			postproc_outputs['hpguppi'].append(hpguppi_output_stempath)
 
 	procindex = 0
 
