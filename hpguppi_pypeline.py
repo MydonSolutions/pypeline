@@ -436,8 +436,8 @@ while(True):
 		env = postproc_envvar[proc]
 		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
-		if hasattr(globals()[proc], 'PROC_STATUS_KEYS'):
-			fetch_fill_key_dict(globals()[proc].PROC_STATUS_KEYS)
+		if hasattr(globals()[proc], 'HASHPIPE_STATUS_KEYS'):
+			fetch_fill_key_dict(globals()[proc].HASHPIPE_STATUS_KEYS)
 		# Run the process
 		print('\n----------------- {:^12s} -----------------'.format(globals()[proc].PROC_NAME))
 		checkpoint_time = time.time()

@@ -8,7 +8,9 @@ PROC_ENV_KEY = None
 PROC_ARG_KEY = 'LOGARG'
 PROC_INP_KEY = 'LOGINP'
 PROC_NAME = 'log'
-PROC_STATUS_KEYS = {'OBSNDROP': None}
+HASHPIPE_STATUS_KEYS = {
+    'OBSNDROP': None
+}
 
 def run(argstr, inputs, env):
     parser = argparse.ArgumentParser(description='Log certain info')
