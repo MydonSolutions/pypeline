@@ -146,11 +146,6 @@ def import_postproc_stage(stagename):
 		return True
 	return None
 
-def block_until_obsinfo_valid(instance=0):
-	while('INVALID' in hpguppi_monitor.get_hashpipe_key_value_str('OBSINFO', instance)):
-		print('OBSINFO is INVALID, will await VALID...', end='\r')
-		time.sleep(1)
-
 def replace_instance_keywords(keyword_dict, string):
 	for keyword in keyword_dict.keys():
 		keyword_value = str(keyword_dict[keyword]) if not isinstance(keyword_dict[keyword], list) else ' '.join(map(str, keyword_dict[keyword]))
@@ -285,8 +280,8 @@ while(True):
 	# Wait until a recording starts
 	print('\nWaiting while DAQSTATE == idling')
 	for check_idx, check in enumerate([lambda x, y: x == y, lambda x, y: x != y]):
-			while(check(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), 'idling')):
-					# print(hpguppi_monitor.get_hashpipe_key_value_str('DAQSTATE', instance), end='\r')
+			while(check(redishash.getkey('DAQSTATE'), 'idling')):
+					# print(redishash.getkey('DAQSTATE'), end='\r')
 					time.sleep(0.25)
 			
 			if check_idx == 0:
