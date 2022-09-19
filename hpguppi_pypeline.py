@@ -12,8 +12,6 @@ import argparse
 import importlib
 import threading
 
-from SNAPobs.snap_hpguppi import hpguppi_monitor
-
 #####################################################################
 from string import Template
 import redis
@@ -52,6 +50,42 @@ class RedisHash:
 			retry_count -= 1
 
 		return ret
+	
+	def get_output_pathstem(self):
+		return os.path.join(self.get_output_dir(), self.getkey('OBSSTEM'))
+
+	def get_output_dir(self):
+		'''
+		Consults the hashpipe's status hash for the path of the latest RAW
+		dump: DATADIR/PROJID/BACKEND/BANK
+
+		Parameters
+		----------
+		instance: int
+				The enumeration of the hashpipe instance whose status is consulted
+
+		Returns
+		-------
+		str: The directory path of the latest RAW dump
+		'''
+		defaults = {
+			'DATADIR':'.',
+			'PROJID':'Unknown',
+			'BACKEND':'GUPPI',
+			'BANK':'.'
+		}
+
+		rawfiledir = ''
+		for key, default in defaults.items():
+			key_value = self.getkey(key)
+			part_str = default
+			if (key_value is not False and
+				key_value is not None and
+				len(key_value) > 0):
+				part_str = key_value
+			rawfiledir = os.path.join(rawfiledir, part_str)
+
+		return rawfiledir
 
 	def setpostprockey(self, key, value):
 		self.redis_obj.hset(self.postproc_hash, key, value)
@@ -316,12 +350,9 @@ while(True):
 	postproc_outputs['hpguppi'] = [None]
 	attempt = 0
 	while not postproc_outputs['hpguppi'][0] and attempt < 2:
-		filedir = hpguppi_monitor.get_hashpipe_capture_dir(instance)
-		obsstem = redishash.getkey('OBSSTEM')
-		if obsstem is not None:
-			filepath_stem = os.path.join(filedir, obsstem)
-		else:
-			filepath_stem = hpguppi_monitor.get_latest_stem_in_dir(filedir)
+		filepath_stem = redishash.get_output_pathstem()
+		print(filepath_stem)
+		print(glob.glob('{}*'.format(filepath_stem)))
 		postproc_outputs['hpguppi'] = [filepath_stem]
 		attempt += 1
 		time.sleep(1)
