@@ -12,7 +12,7 @@ PROC_NAME = 'mv'
 POPENED = []
 
 POPENED_TIMES = []
-PROC_STATUS_KEYS = {
+PROC_CONTEXT = {
   'PROJID': None,
   'OBSSTEM': None,
 }
@@ -61,7 +61,7 @@ def run(argstr, inputs, env):
   args = parser.parse_args(argstr.split(' '))
 
   for (key, status_key) in PROC_LOCAL_KEYWORD_STATUS_KEY_MAP.items():
-    args.destination = args.destination.replace('${}$'.format(key), PROC_STATUS_KEYS[status_key])
+    args.destination = args.destination.replace('${}$'.format(key), PROC_CONTEXT[status_key])
 
   destination_normed = os.path.normpath(args.destination)
   if(args.destination[-1] == '/'): # normpath removes trailing '/' which split needs to identify path as a directory
@@ -105,7 +105,7 @@ def run(argstr, inputs, env):
   return patterns
 
 if __name__ == '__main__':
-  PROC_STATUS_KEYS['PROJID'] = 'bogus_proj'
+  PROC_CONTEXT['PROJID'] = 'bogus_proj'
   run(
     "-i 0 /home/sonata/corr_data/bogus_stem/bogus_hostname/bogus_stem_0.uvh5 --sync",
     ['bogus_stem'],

@@ -52,7 +52,7 @@ def run(argstr, inputs, env):
         ]
         if args.t is not None and args.p is not None:
             row.append(''.join([args.p[i]+'=%0.4f' % args.t[i] for i in range(len(args.t))]))
-        for key, val in PROC_STATUS_KEYS.items():
+        for key, val in PROC_CONTEXT.items():
             row.append('{}={}'.format(key, str(val)))
         csvwr.writerow(row)
 

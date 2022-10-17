@@ -50,9 +50,9 @@ def run():
 
 def setupstage(stage):
     global STATE_hpkv_cache
-    if hasattr(stage, "PROC_STATUS_KEYS"):
-        for key in stage.PROC_STATUS_KEYS.keys():
-            stage.PROC_STATUS_KEYS.key = getattr(STATE_hpkv_cache, key) if hasattr(STATE_hpkv_cache, key) else STATE_hpkv_cache.get(key)
+    if hasattr(stage, "PROC_CONTEXT"):
+        for key in stage.PROC_CONTEXT.keys():
+            stage.PROC_CONTEXT.key = getattr(STATE_hpkv_cache, key) if hasattr(STATE_hpkv_cache, key) else STATE_hpkv_cache.get(key)
             
 
 

@@ -26,8 +26,8 @@ def run():
 
 def setupstage(stage):
 	global STATE_context
-	if hasattr(stage, "context"):
-		stage.context = STATE_context
+	if hasattr(stage, "PROC_CONTEXT"):
+		stage.PROC_CONTEXT = STATE_context
 
 if __name__ == "__main__":
 	import socket
