@@ -24,15 +24,15 @@ class PostProcKeyValues(object):
         self.redis_pubsub.subscribe('postprocpype:///set')
 
         self.postproc_hash = self.POSTPROCHASH.substitute(host=hostname, inst=instance_id)
-        self.clearpostprockeys()
+        self.clear()
     
     def __del__(self):
         self.redis_pubsub.unsubscribe('postprocpype:///set')
 
-    def setpostprockey(self, key, value):
+    def set(self, key, value):
         self.redis_obj.hset(self.postproc_hash, key, value)
 
-    def getpostprockey(self, keystr, retry_count=5, retry_period_ms=50):
+    def get(self, keystr, retry_count=5, retry_period_ms=50):
         ret = None
         while ret is None and retry_count > 0:
             try:
@@ -44,7 +44,7 @@ class PostProcKeyValues(object):
 
         return ret
 
-    def clearpostprockeys(self, exclusion_list=[]):
+    def clear(self, exclusion_list=[]):
         all_keys = self.redis_obj.hgetall(self.postproc_hash).keys()
         keys_to_clear = [key for key in all_keys if key not in exclusion_list]
         if len(keys_to_clear) > 0:
@@ -55,7 +55,7 @@ class PostProcKeyValues(object):
 STATUS_STR = "INITIALISING"
 def publish_status_thr(ppkv, sleep_interval):
 		global STATUS_STR
-		previous_stage_list = ppkv.getpostprockey("#STAGES")
+		previous_stage_list = ppkv.get("#STAGES")
 		ellipsis_count = 0
 		while(STATUS_STR != "EXITING"):
 			# time.sleep(sleep_interval)
@@ -64,9 +64,9 @@ def publish_status_thr(ppkv, sleep_interval):
 				if message is None or not isinstance(message.get('data'), bytes):
 					break
 				for keyvaluestr in message.get('data').decode().split('\n'):
-					ppkv.setpostprockey(*(keyvaluestr.split('=')))
+					ppkv.set(*(keyvaluestr.split('=')))
 			
-			stage_list = ppkv.getpostprockey("#STAGES")
+			stage_list = ppkv.get("#STAGES")
 			if (stage_list is not None and 
 				stage_list != previous_stage_list and STATUS_STR == "WAITING"
 			):
@@ -85,10 +85,10 @@ def publish_status_thr(ppkv, sleep_interval):
 						key = proc_pymod.PROC_ARG_KEY if hasattr(proc_pymod, 'PROC_ARG_KEY') else None
 						if key is not None:
 							rediskeys_in_use.append(key)
-				ppkv.clearpostprockeys(exclusion_list = rediskeys_in_use)
+				ppkv.clear(exclusion_list = rediskeys_in_use)
 
-			ppkv.setpostprockey('STATUS', '%s'%(STATUS_STR+'.'*int(ellipsis_count)))
-			ppkv.setpostprockey('PULSE', '%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
+			ppkv.set('STATUS', '%s'%(STATUS_STR+'.'*int(ellipsis_count)))
+			ppkv.set('PULSE', '%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
 			ellipsis_count = (ellipsis_count+1)%4
 
 def import_stage(stagename, reloadFlagDict, stagePrefix='postproc'):
@@ -179,7 +179,7 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 
 def fetch_proc_key_value(key, proc, value_dict, index_dict, ppkv, value_delimiter):
 	if (proc not in value_dict) and (key is not None):
-		value_dict[proc] = ppkv.getpostprockey(key)
+		value_dict[proc] = ppkv.get(key)
 		if value_dict[proc] is None:
 			print('Post-Process {}: missing key \'{}\', bailing.'.format(proc, key))
 			return False
@@ -246,7 +246,7 @@ ppkv = PostProcKeyValues(
 	redis.Redis(args.redis_hostname, decode_responses=True)
 )
 
-ppkv.setpostprockey('#PRIMARY', args.procstage)
+ppkv.set('#PRIMARY', args.procstage)
 
 globals()[args.procstage].setup(
 	instance_keywords['hnme'],
@@ -255,7 +255,7 @@ globals()[args.procstage].setup(
 
 for kvstr in args.kv:
 	delim_idx = kvstr.index('=')
-	ppkv.setpostprockey(kvstr[0:delim_idx], kvstr[delim_idx+1:])
+	ppkv.set(kvstr[0:delim_idx], kvstr[delim_idx+1:])
 
 status_thread = threading.Thread(target=publish_status_thr, args=(ppkv, 1.5), daemon=False)
 status_thread.start()
@@ -281,7 +281,7 @@ while(True):
 		print('No captured data found for post-processing.')
 		continue
 
-	postproc_str = ppkv.getpostprockey('#STAGES')
+	postproc_str = ppkv.get('#STAGES')
 	if postproc_str is None:
 		print('#STAGES key is not found. Not post-processing.')
 		continue
