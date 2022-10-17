@@ -86,13 +86,14 @@ def publish_status_thr(ppkv, sleep_interval, reloadFlagDict = {}):
 				rediskeys_in_use = ['#MODULES', 'STATUS', 'PULSE']
 				for proc in stage_list.split(' '):
 					if proc != 'skip' and proc in globals():
-						key = globals()[proc].PROC_ENV_KEY
+						proc_pymod = globals()[proc]
+						key = proc_pymod.PROC_ENV_KEY if hasattr(proc_pymod, 'PROC_ENV_KEY') else None
 						if key is not None:
 							rediskeys_in_use.append(key)
-						key = globals()[proc].PROC_INP_KEY
+						key = proc_pymod.PROC_INP_KEY if hasattr(proc_pymod, 'PROC_INP_KEY') else None
 						if key is not None:
 							rediskeys_in_use.append(key)
-						key = globals()[proc].PROC_ARG_KEY
+						key = proc_pymod.PROC_ARG_KEY if hasattr(proc_pymod, 'PROC_ARG_KEY') else None
 						if key is not None:
 							rediskeys_in_use.append(key)
 				ppkv.clearpostprockeys(exclusion_list = rediskeys_in_use)
@@ -224,6 +225,8 @@ parser.add_argument('instance', type=int,
                     help='The instance ID of the hashpipe.')
 parser.add_argument('procstage', type=str,
                     help='The name of process stage.')
+parser.add_argument('-kv', type=str, nargs='*', default=['#MODULES=skip'],
+                    help='key=value strings to set in the pypeline Redis Hash.')
 args = parser.parse_args()
 
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
@@ -246,17 +249,21 @@ ppkv = PostProcKeyValues(
 	redis.Redis('redishost', decode_responses=True)
 )
 
-status_thread = threading.Thread(target=publish_status_thr, args=(ppkv, 1.5), daemon=False)
-status_thread.start()
-
-time.sleep(1)
 ppkv.setpostprockey('#PROCESS', args.procstage)
-ppkv.setpostprockey('#MODULES', 'skip')
 
 globals()[args.procstage].setup(
 	instance_keywords['hnme'],
 	instance_keywords['inst'],
 )
+
+for kvstr in args.kv:
+	delim_idx = kvstr.index('=')
+	ppkv.setpostprockey(kvstr[0:delim_idx], kvstr[delim_idx+1:])
+
+status_thread = threading.Thread(target=publish_status_thr, args=(ppkv, 1.5), daemon=False)
+status_thread.start()
+
+time.sleep(1)
 
 while(True):
 	STATUS_STR = "WAITING"
