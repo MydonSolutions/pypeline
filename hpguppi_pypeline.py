@@ -61,9 +61,9 @@ sys.path.insert(0, script_dir)
 
 
 STATUS_STR = "INITIALISING"
-def publish_status_thr(ppkv, sleep_interval, reloadFlagDict = {}):
+def publish_status_thr(ppkv, sleep_interval):
 		global STATUS_STR
-		previous_stage_list = ppkv.getpostprockey("#MODULES")
+		previous_stage_list = ppkv.getpostprockey("#STAGES")
 		ellipsis_count = 0
 		while(STATUS_STR != "EXITING"):
 			# time.sleep(sleep_interval)
@@ -74,13 +74,13 @@ def publish_status_thr(ppkv, sleep_interval, reloadFlagDict = {}):
 				for keyvaluestr in message.get('data').decode().split('\n'):
 					ppkv.setpostprockey(*(keyvaluestr.split('=')))
 			
-			stage_list = ppkv.getpostprockey("#MODULES")
+			stage_list = ppkv.getpostprockey("#STAGES")
 			if (stage_list is not None and 
 				stage_list != previous_stage_list and STATUS_STR == "WAITING"
 			):
 				# clear unused redis-hash keys
 				previous_stage_list = stage_list
-				rediskeys_in_use = ['#MODULES', 'STATUS', 'PULSE']
+				rediskeys_in_use = ['#PRIMARY', '#STAGES', 'STATUS', 'PULSE']
 				for proc in stage_list.split(' '):
 					if proc != 'skip' and proc in globals():
 						proc_pymod = globals()[proc]
@@ -222,7 +222,7 @@ parser.add_argument('instance', type=int,
                     help='The instance ID of the hashpipe.')
 parser.add_argument('procstage', type=str,
                     help='The name of process stage.')
-parser.add_argument('-kv', type=str, nargs='*', default=['#MODULES=skip'],
+parser.add_argument('-kv', type=str, nargs='*', default=['#STAGES=skip'],
                     help='key=value strings to set in the pypeline Redis Hash.')
 args = parser.parse_args()
 
@@ -246,7 +246,7 @@ ppkv = PostProcKeyValues(
 	redis.Redis('redishost', decode_responses=True)
 )
 
-ppkv.setpostprockey('#PROCESS', args.procstage)
+ppkv.setpostprockey('#PRIMARY', args.procstage)
 
 globals()[args.procstage].setup(
 	instance_keywords['hnme'],
@@ -282,12 +282,12 @@ while(True):
 		print('No captured data found for post-processing.')
 		continue
 
-	postproc_str = ppkv.getpostprockey('#MODULES')
+	postproc_str = ppkv.getpostprockey('#STAGES')
 	if postproc_str is None:
-		print('#MODULES key is not found. Not post-processing.')
+		print('#STAGES key is not found. Not post-processing.')
 		continue
 	if 'skip' in postproc_str[0:4]:
-		print('#MODULES key begins with skip, not post-processing.')
+		print('#STAGES key begins with skip, not post-processing.')
 		continue
 	postprocs = postproc_str.split(' ')
 	print('Post Processes:\n\t', postprocs)
