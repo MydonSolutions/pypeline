@@ -1,48 +1,50 @@
 import re
 import csv
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from blimpy import Waterfall
 
 PROC_ENV_KEY = None
 PROC_ARG_KEY = None
-PROC_INP_KEY = 'FLPLTINP'
-PROC_NAME = 'filplotter'
+PROC_INP_KEY = "FLPLTINP"
+PROC_NAME = "filplotter"
+
 
 def run(argstr, inputs, envvar):
-	filpaths = [inp for inp in inputs if '.fil' in inp]
-	if len(inputs) < 1 or len(filpaths) < 1:
-		print('FilPlotter requires the filterbank path(s) from rawspec\'s output.')
-		return []
-	
-	a = filpaths[len(filpaths)+2]
+    filpaths = [inp for inp in inputs if ".fil" in inp]
+    if len(inputs) < 1 or len(filpaths) < 1:
+        print("FilPlotter requires the filterbank path(s) from rawspec's output.")
+        return []
 
-	for filname in filpaths:
-		obs = Waterfall(filname, max_load=20)
+    a = filpaths[len(filpaths) + 2]
 
-		hyphenDelimRE = r'(?P<val>-?[^-]+)-?'
-		m = re.match(r'.*sy_(?P<id>\d+)', filname)
-		if m:
-			with open('/home/sonata/dev/test_setigen/generated.csv', 'r') as fio:
-				gen_csv = csv.DictReader(fio)
-				for entry in gen_csv:
-					if entry['ID'] == m.group('id'):
-						synthDict = entry
-						break
-			assert(synthDict)
-			freqs = re.findall(hyphenDelimRE, synthDict['Freqs'])
-			drates = re.findall(hyphenDelimRE, synthDict['Drates'])
+    for filname in filpaths:
+        obs = Waterfall(filname, max_load=20)
 
-		for freq_str in freqs:
-			freq_inj = float(freq_str[0:-3])*1e9
-			freq_inj = (int(freq_inj/1000))/1000 # round to kHz and scale to MHz
-			
-			fig = plt.figure()
-			# obs.plot_spectrum(f_start=freq_inj-0.0125, f_stop=freq_inj+0.0125) # left sideband
-			obs.plot_waterfall(f_start=freq_inj-0.00125, f_stop=freq_inj+0.00125)
-			fig.savefig(''.join(filname.split('.')[0:-1])+'_'+freq_str+'.PNG')
-			plt.close(fig)
+        hyphenDelimRE = r"(?P<val>-?[^-]+)-?"
+        m = re.match(r".*sy_(?P<id>\d+)", filname)
+        if m:
+            with open("/home/sonata/dev/test_setigen/generated.csv", "r") as fio:
+                gen_csv = csv.DictReader(fio)
+                for entry in gen_csv:
+                    if entry["ID"] == m.group("id"):
+                        synthDict = entry
+                        break
+            assert synthDict
+            freqs = re.findall(hyphenDelimRE, synthDict["Freqs"])
+            drates = re.findall(hyphenDelimRE, synthDict["Drates"])
+
+        for freq_str in freqs:
+            freq_inj = float(freq_str[0:-3]) * 1e9
+            freq_inj = (int(freq_inj / 1000)) / 1000  # round to kHz and scale to MHz
+
+            fig = plt.figure()
+            # obs.plot_spectrum(f_start=freq_inj-0.0125, f_stop=freq_inj+0.0125) # left sideband
+            obs.plot_waterfall(f_start=freq_inj - 0.00125, f_stop=freq_inj + 0.00125)
+            fig.savefig("".join(filname.split(".")[0:-1]) + "_" + freq_str + ".PNG")
+            plt.close(fig)
 
 
 # import os
@@ -57,7 +59,7 @@ def run(argstr, inputs, envvar):
 # 	if len(inputs) < 1 or len(filpaths) < 1:
 # 		print('FilPlotter requires the filterbank path(s) from rawspec\'s output.')
 # 		return []
-	
+
 # 	for filname in filpaths:
 # 		print(filname)
 # 		filstem = filname.split('.')[0:-1]
