@@ -2,7 +2,7 @@
 import argparse
 import time
 from datetime import datetime
-import os
+import os, sys
 import redis
 import socket
 from string import Template
@@ -51,14 +51,6 @@ class PostProcKeyValues(object):
             self.redis_obj.hdel(self.postproc_hash, *keys_to_clear)
 						
 #####################################################################
-
-import sys
-# insert the `hpguppi_pypeline.py` script's directory, so the adjacent
-# postproc_stages can be imported
-script_dir, _ = os.path.split(os.path.realpath(__file__))
-print('postproc_stages.py taken to be in', script_dir)
-sys.path.insert(0, script_dir)
-
 
 STATUS_STR = "INITIALISING"
 def publish_status_thr(ppkv, sleep_interval):
@@ -215,18 +207,26 @@ def print_proc_dict_progress(proc, inp_tmp_dict, inp_tmpidx_dict, inp_dict, inpi
 
 reloadFlagDict = {}
 
-parser = argparse.ArgumentParser(description='Monitors the observations of an Hpguppi_daq instance.',
-             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+script_dir, _ = os.path.split(os.path.realpath(__file__))
 
+parser = argparse.ArgumentParser(
+	description='A pythonic pipeline executable, with a Redis interface.',
+  formatter_class=argparse.ArgumentDefaultsHelpFormatter
+)
 parser.add_argument('instance', type=int,
-                    help='The instance ID of the hashpipe.')
+                    help='The instance ID of the pypeline.')
 parser.add_argument('procstage', type=str,
                     help='The name of process stage.')
 parser.add_argument('-kv', type=str, nargs='*', default=['#STAGES=skip'],
-                    help='key=value strings to set in the pypeline Redis Hash.')
+                    help='key=value strings to set in the pypeline\'s Redis Hash.')
+parser.add_argument('--stage-dir', type=str, default=script_dir,
+                    help='The directory path of all the scripts.')
+parser.add_argument('--redis-hostname', type=str, default='redishost',
+                    help='The hostname of the Redis server.')
 args = parser.parse_args()
 
-print('\n######Assuming Hashpipe Redis Gateway#####\n')
+print('postproc_stages.py taken to be in', script_dir)
+sys.path.insert(0, script_dir)
 
 assert import_stage(args.procstage, reloadFlagDict, stagePrefix="proc")
 
@@ -243,7 +243,7 @@ instance_stage_popened = {}
 ppkv = PostProcKeyValues(
 	instance_keywords['hnme'],
 	instance_keywords['inst'],
-	redis.Redis('redishost', decode_responses=True)
+	redis.Redis(args.redis_hostname, decode_responses=True)
 )
 
 ppkv.setpostprockey('#PRIMARY', args.procstage)
@@ -276,7 +276,6 @@ while(True):
 		STATUS_STR = "EXITING"
 		status_thread.join()
 		exit(0)
-
 
 	if len(proc_outputs) == 0:
 		print('No captured data found for post-processing.')
