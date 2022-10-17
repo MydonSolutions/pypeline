@@ -65,7 +65,7 @@ def publish_status_thr(ppkv, sleep_interval, reloadFlagDict = {}):
 		global STATUS_STR
 		previous_stage_list = ppkv.getpostprockey("#MODULES")
 		ellipsis_count = 0
-		while(1):
+		while(STATUS_STR != "EXITING"):
 			# time.sleep(sleep_interval)
 			while(1):
 				message = ppkv.redis_pubsub.get_message(timeout=sleep_interval)
@@ -268,8 +268,15 @@ while(True):
 	try:
 		proc_outputs = globals()[args.procstage].run()
 	except KeyboardInterrupt:
+		STATUS_STR = "EXITING"
 		status_thread.join()
 		exit(0)
+	
+	if proc_outputs == False:
+		STATUS_STR = "EXITING"
+		status_thread.join()
+		exit(0)
+
 
 	if len(proc_outputs) == 0:
 		print('No captured data found for post-processing.')
