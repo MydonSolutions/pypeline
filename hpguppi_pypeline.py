@@ -13,16 +13,15 @@ import argparse
 import importlib
 import threading
 
-import proc_hpdaq as hpdaq
-
 #####################################################################
-from hashpipe_keyvalues import HashpipeKeyValues
 
-class HashpipePostProcKeyValues(HashpipeKeyValues):
+class PostProcKeyValues(object):
     POSTPROCHASH = Template('postprocpype://${host}/${inst}/status')
 
     def __init__(self, hostname, instance_id, redis_obj):
-        super().__init__(hostname, instance_id, redis_obj)
+        self.hostname = hostname
+        self.instance_id = instance_id
+        self.redis_obj = redis_obj
 
         self.redis_pubsub = self.redis_obj.pubsub()
         self.redis_pubsub.subscribe('postprocpype:///set')
@@ -65,20 +64,20 @@ sys.path.insert(0, script_dir)
 
 
 STATUS_STR = "INITIALISING"
-def publish_status_thr(hpppkv, sleep_interval, reloadFlagDict = {}):
+def publish_status_thr(ppkv, sleep_interval, reloadFlagDict = {}):
 		global STATUS_STR
-		previous_stage_list = hpppkv.getpostprockey("#MODULES")
+		previous_stage_list = ppkv.getpostprockey("#MODULES")
 		ellipsis_count = 0
 		while(1):
 			# time.sleep(sleep_interval)
 			while(1):
-				message = hpppkv.redis_pubsub.get_message(timeout=sleep_interval)
+				message = ppkv.redis_pubsub.get_message(timeout=sleep_interval)
 				if message is None or not isinstance(message.get('data'), bytes):
 					break
 				for keyvaluestr in message.get('data').decode().split('\n'):
-					hpppkv.setpostprockey(*(keyvaluestr.split('=')))
+					ppkv.setpostprockey(*(keyvaluestr.split('=')))
 			
-			stage_list = hpppkv.getpostprockey("#MODULES")
+			stage_list = ppkv.getpostprockey("#MODULES")
 			if (stage_list is not None and 
 				stage_list != previous_stage_list and STATUS_STR == "WAITING"
 			):
@@ -96,18 +95,18 @@ def publish_status_thr(hpppkv, sleep_interval, reloadFlagDict = {}):
 						key = globals()[proc].PROC_ARG_KEY
 						if key is not None:
 							rediskeys_in_use.append(key)
-				hpppkv.clearpostprockeys(exclusion_list = rediskeys_in_use)
+				ppkv.clearpostprockeys(exclusion_list = rediskeys_in_use)
 
-			hpppkv.setpostprockey('STATUS', '%s'%(STATUS_STR+'.'*int(ellipsis_count)))
-			hpppkv.setpostprockey('PULSE', '%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
+			ppkv.setpostprockey('STATUS', '%s'%(STATUS_STR+'.'*int(ellipsis_count)))
+			ppkv.setpostprockey('PULSE', '%s'%(datetime.now().strftime('%a %b %d %H:%M:%S %Y')))
 			ellipsis_count = (ellipsis_count+1)%4
 
-def import_postproc_stage(stagename, reloadFlagDict):
+def import_stage(stagename, reloadFlagDict, stagePrefix='postproc'):
 	if stagename not in globals(): #stagename not in sys.modules:
 		try:
-			globals()[stagename] = importlib.import_module('postproc_'+stagename)
+			globals()[stagename] = importlib.import_module(f'{stagePrefix}_{stagename}')
 		except ModuleNotFoundError:
-			print('Could not find {}.py stage!'.format(os.path.join(script_dir, 'postproc_'+stagename)))
+			print('Could not find {}.py stage!'.format(os.path.join(script_dir, f'{stagePrefix}_{stagename}')))
 			return False
 			
 		print('Imported the {} stage!'.format(stagename))
@@ -117,7 +116,7 @@ def import_postproc_stage(stagename, reloadFlagDict):
 		try:
 			globals()[stagename] = importlib.reload(globals()[stagename])
 		except ModuleNotFoundError:
-			print('Could not find {}.py stage to reload, keeping old load!'.format(os.path.join(script_dir, 'postproc_'+stagename)))
+			print('Could not find {}.py stage to reload, keeping old load!'.format(os.path.join(script_dir, f'{stagePrefix}_{stagename}')))
 			return True
 		
 		print('Reloaded the {} stage!'.format(stagename))
@@ -188,9 +187,9 @@ def parse_input_template(input_template, postproc_outputs, postproc_lastinput):
 
 	return ret
 
-def fetch_proc_key_value(key, proc, value_dict, index_dict, hpppkv, value_delimiter):
+def fetch_proc_key_value(key, proc, value_dict, index_dict, ppkv, value_delimiter):
 	if (proc not in value_dict) and (key is not None):
-		value_dict[proc] = hpppkv.getpostprockey(key)
+		value_dict[proc] = ppkv.getpostprockey(key)
 		if value_dict[proc] is None:
 			print('Post-Process {}: missing key \'{}\', bailing.'.format(proc, key))
 			return False
@@ -216,17 +215,6 @@ def print_proc_dict_progress(proc, inp_tmp_dict, inp_tmpidx_dict, inp_dict, inpi
 		)
 	)
 
-def fetch_fill_key_dict(hpppkv, keys_dict):
-	'''
-		Fetch the values for the keys of a dictionary from the 
-		hashpipe://.../status Redis Hash.
-	'''
-	for key in keys_dict.keys():
-		if hasattr(hpppkv, key):
-			keys_dict[key] = getattr(hpppkv, key)
-		else:
-			keys_dict[key] = hpppkv.get(key)
-
 reloadFlagDict = {}
 
 parser = argparse.ArgumentParser(description='Monitors the observations of an Hpguppi_daq instance.',
@@ -234,22 +222,16 @@ parser = argparse.ArgumentParser(description='Monitors the observations of an Hp
 
 parser.add_argument('instance', type=int,
                     help='The instance ID of the hashpipe.')
+parser.add_argument('procstage', type=str,
+                    help='The name of process stage.')
 args = parser.parse_args()
 
-hpppkv = HashpipePostProcKeyValues(
-	socket.gethostname(),
-	args.instance,
-	redis.Redis('redishost', decode_responses=True)
-)
-
-status_thread = threading.Thread(target=publish_status_thr, args=(hpppkv, 1.5), daemon=False)
-status_thread.start()
-
-instance = args.instance
 print('\n######Assuming Hashpipe Redis Gateway#####\n')
 
+assert import_stage(args.procstage, reloadFlagDict, stagePrefix="proc")
+
 instance_keywords = {}
-instance_keywords['inst'] = instance
+instance_keywords['inst'] = args.instance
 instance_keywords['hnme'] = socket.gethostname()
 instance_keywords['beg'] 	= time.time() # repopulated as each recording begins
 instance_keywords['end'] 	= time.time() # repopulated as each recording ends
@@ -258,19 +240,38 @@ instance_keywords['proc'] = [] # repopulated throughout each observation
 
 instance_stage_popened = {}
 
+ppkv = PostProcKeyValues(
+	instance_keywords['hnme'],
+	instance_keywords['inst'],
+	redis.Redis('redishost', decode_responses=True)
+)
+
+status_thread = threading.Thread(target=publish_status_thr, args=(ppkv, 1.5), daemon=False)
+status_thread.start()
+
 time.sleep(1)
-postproc_str = hpppkv.setpostprockey('#MODULES', 'skip')
+ppkv.setpostprockey('#PROCESS', args.procstage)
+ppkv.setpostprockey('#MODULES', 'skip')
+
+globals()[args.procstage].setup(
+	instance_keywords['hnme'],
+	instance_keywords['inst'],
+)
 
 while(True):
 	STATUS_STR = "WAITING"
-	# Wait until preproc returns non-None
-	proc_outputs = None
-	while proc_outputs is None:
-		time.sleep(0.2)
-		fetch_fill_key_dict(hpppkv, hpdaq.HASHPIPE_STATUS_KEYS)
-		proc_outputs = hpdaq.run(None, None, None)
+	# Wait until the process-stage returns outputs
+	try:
+		proc_outputs = globals()[args.procstage].run()
+	except KeyboardInterrupt:
+		status_thread.join()
+		exit(0)
 
-	postproc_str = hpppkv.getpostprockey('#MODULES')
+	if len(proc_outputs) == 0:
+		print('No captured data found for post-processing.')
+		continue
+
+	postproc_str = ppkv.getpostprockey('#MODULES')
 	if postproc_str is None:
 		print('#MODULES key is not found. Not post-processing.')
 		continue
@@ -292,12 +293,10 @@ while(True):
 	postproc_lastinput = {}
 	postproc_args = {}
 	postproc_argindices = {}
-	postproc_outputs = {}
+	postproc_outputs = {
+		args.procstage: proc_outputs
+	}
 	attempt = 0
-	
-	if len(proc_outputs) == 0:
-		print('No captured data found for post-processing.')
-		continue
 
 	procindex = 0
 	while True:
@@ -320,7 +319,7 @@ while(True):
 			print('%s\'s %d process(es) are complete.' % (proc, len(instance_stage_popened[proc])))
 			print()
 
-		if import_postproc_stage(proc, reloadFlagDict) is False:
+		if import_stage(proc, reloadFlagDict) is False:
 			print('Skipping post-processing on account of missing stage.')
 			break
 
@@ -330,11 +329,11 @@ while(True):
 		argkey = globals()[proc].PROC_ARG_KEY
 
 		# Load INP, ARG and ENV key's value for the process if applicable
-		if not fetch_proc_key_value(inpkey, proc, postproc_input_templates, postproc_input_templateindices, hpppkv, ','):
+		if not fetch_proc_key_value(inpkey, proc, postproc_input_templates, postproc_input_templateindices, ppkv, ','):
 			break
-		if not fetch_proc_key_value(argkey, proc, postproc_args, postproc_argindices, hpppkv, ','):
+		if not fetch_proc_key_value(argkey, proc, postproc_args, postproc_argindices, ppkv, ','):
 			break
-		if not fetch_proc_key_value(envkey, proc, postproc_envvar, None, hpppkv, None):
+		if not fetch_proc_key_value(envkey, proc, postproc_envvar, None, ppkv, None):
 			break
 
 		if proc not in postproc_inputindices:
@@ -365,8 +364,6 @@ while(True):
 		env = postproc_envvar[proc]
 		env = replace_instance_keywords(instance_keywords, env) if env is not None else None
 
-		if hasattr(globals()[proc], 'HASHPIPE_STATUS_KEYS'):
-			fetch_fill_key_dict(hpppkv, globals()[proc].HASHPIPE_STATUS_KEYS)
 		# Run the process
 		print('\n----------------- {:^12s} -----------------'.format(globals()[proc].PROC_NAME))
 		checkpoint_time = time.time()

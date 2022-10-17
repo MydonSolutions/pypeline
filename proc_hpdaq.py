@@ -1,15 +1,7 @@
 import os
 import glob
-
-
-PROC_ENV_KEY = None
-PROC_ARG_KEY = None
-PROC_INP_KEY = None
-PROC_NAME = 'hpdaq'
-HASHPIPE_STATUS_KEYS = {
-    "DAQSTATE": None,
-    "observation_stempath": None,
-}
+import redis
+from hashpipe_keyvalues.standard import HashpipeKeyValues
 
 class DaqState:
     Unknown = -1
@@ -27,29 +19,34 @@ class DaqState:
             return DaqState.Record
         return DaqState.Unknown
 
-STATE_hpdaq = DaqState.Unknown
+STATE_hpkv = None
 
-def run(argstr, inputs, env):
-    global STATE_hpdaq
+def setup(hostname, instance):
+    global STATE_hpkv
 
-    current_daq = DaqState.decode_daqstate(HASHPIPE_STATUS_KEYS['DAQSTATE'])
-    if not (STATE_hpdaq == DaqState.Record and current_daq == DaqState.Idle):
-        STATE_hpdaq = current_daq
-        return None
+    STATE_hpkv = HashpipeKeyValues(
+        hostname,
+        instance,
+        redis.Redis('redishost', decode_responses=True)
+    )
 
-    # STATE_hpdaq == DaqState.Record and current_daq = DaqState.Idle
+def run():
+    global STATE_hpkv
+    prev_daq = DaqState.Unknown
+    current_daq = DaqState.Idle
+    while not (prev_daq == DaqState.Record and current_daq == DaqState.Idle):
+        prev_daq = current_daq
+        current_daq = DaqState.decode_daqstate(STATE_hpkv.get("DAQSTATE"))
+
+    # prev_daq == DaqState.Record and current_daq = DaqState.Idle
     # i.e. recording just completed
-    obs_stempath = f'{os.path.join(*HASHPIPE_STATUS_KEYS["observation_stempath"])}*'
+    obs_stempath = f'{os.path.join(*STATE_hpkv.observation_stempath)}*'
     output_filepaths = glob.glob(obs_stempath)
 
-    STATE_hpdaq = current_daq
     return output_filepaths
 
 if __name__ == "__main__":
     import socket
 
-    run(
-        f'-H {socket.gethostname()} -i {1}',
-        None,
-        None
-    )
+    setup(socket.gethostname(), 1)
+    print(run())
