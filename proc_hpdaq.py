@@ -20,6 +20,7 @@ class DaqState:
         return DaqState.Unknown
 
 STATE_hpkv = None
+STATE_hpkv_cache = None
 
 def setup(hostname, instance):
     global STATE_hpkv
@@ -43,7 +44,17 @@ def run():
     obs_stempath = f'{os.path.join(*STATE_hpkv.observation_stempath)}*'
     output_filepaths = glob.glob(obs_stempath)
 
+    STATE_hpkv_cache = STATE_hpkv.get_cache()
+
     return output_filepaths
+
+def setupstage(stage):
+    global STATE_hpkv_cache
+    if hasattr(stage, "PROC_STATUS_KEYS"):
+        for key in stage.PROC_STATUS_KEYS.keys():
+            stage.PROC_STATUS_KEYS.key = getattr(STATE_hpkv_cache, key) if hasattr(STATE_hpkv_cache, key) else STATE_hpkv_cache.get(key)
+            
+
 
 if __name__ == "__main__":
     import socket

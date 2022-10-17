@@ -1,12 +1,9 @@
 #!/usr/bin/env python
-import subprocess
 import argparse
 import time
 from datetime import datetime
 import os
-import re
 import redis
-import glob
 import socket
 from string import Template
 import argparse
@@ -342,6 +339,8 @@ while(True):
 			break
 		if not fetch_proc_key_value(envkey, proc, postproc_envvar, None, ppkv, None):
 			break
+
+		globals()[args.procstage].setupstage(globals()[proc])
 
 		if proc not in postproc_inputindices:
 			postproc_inputindices[proc] = 0

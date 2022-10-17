@@ -1,9 +1,13 @@
 import time
+from datetime import datetime
 
 STATE_data = None
+STATE_context = None
 
 def setup(hostname, instance):
-	global STATE_data
+	global STATE_data, STATE_context
+
+	STATE_context = datetime.now()
 
 	STATE_data = [
 			hostname,
@@ -19,6 +23,11 @@ def run():
 		time.sleep(1)
 
 	return STATE_data
+
+def setupstage(stage):
+	global STATE_context
+	if hasattr(stage, "context"):
+		stage.context = STATE_context
 
 if __name__ == "__main__":
 	import socket
