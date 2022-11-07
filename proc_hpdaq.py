@@ -34,12 +34,16 @@ def setup(hostname, instance):
 
 
 def run():
-    global STATE_hpkv
+    global STATE_hpkv, STATE_hpkv_cache
     prev_daq = DaqState.Unknown
     current_daq = DaqState.Idle
     while not (prev_daq == DaqState.Record and current_daq == DaqState.Idle):
         prev_daq = current_daq
-        current_daq = DaqState.decode_daqstate(STATE_hpkv.get("DAQSTATE"))
+        daqstate = STATE_hpkv.get("DAQSTATE")
+        if daqstate is not None:
+            current_daq = DaqState.decode_daqstate(daqstate)
+            if current_daq != prev_daq:
+                print(daqstate, current_daq)
 
     # prev_daq == DaqState.Record and current_daq = DaqState.Idle
     # i.e. recording just completed
@@ -55,7 +59,7 @@ def setupstage(stage):
     global STATE_hpkv_cache
     if hasattr(stage, "PROC_CONTEXT"):
         for key in stage.PROC_CONTEXT.keys():
-            stage.PROC_CONTEXT.key = (
+            stage.PROC_CONTEXT[key] = (
                 getattr(STATE_hpkv_cache, key)
                 if hasattr(STATE_hpkv_cache, key)
                 else STATE_hpkv_cache.get(key)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import argparse
 import time
 from datetime import datetime
@@ -63,6 +63,8 @@ def publish_status_thr(ppkv, sleep_interval):
     global STATUS_STR
     previous_stage_list = ppkv.get("#STAGES")
     ellipsis_count = 0
+    cleanup_stability_factor = 1
+    process_changed_count = 0
     while STATUS_STR != "EXITING":
         # time.sleep(sleep_interval)
         while 1:
@@ -73,38 +75,40 @@ def publish_status_thr(ppkv, sleep_interval):
                 ppkv.set(*(keyvaluestr.split("=")))
 
         stage_list = ppkv.get("#STAGES")
-        if (
+        process_changed = (
             stage_list is not None
             and stage_list != previous_stage_list
             and STATUS_STR == "WAITING"
-        ):
+        )
+        if process_changed:
+            process_changed_count += 1
+
+        if process_changed_count == cleanup_stability_factor:
             # clear unused redis-hash keys
+            process_changed_count = 0
             previous_stage_list = stage_list
             rediskeys_in_use = ["#PRIMARY", "#STAGES", "STATUS", "PULSE"]
             for proc in stage_list.split(" "):
-                if proc != "skip" and proc in globals():
+
+                if proc == "skip":
+                    break
+                if proc not in globals():
+                    # actual pypeline thread has not seen the stage,
+                    # import it locally, in lieu of access to the reloadDict
+                    local_defs = {}
+                    import_stage(proc, {}, definition_dict=local_defs)
+                    proc_pymod = local_defs[proc]
+                else:
                     proc_pymod = globals()[proc]
-                    key = (
-                        proc_pymod.PROC_ENV_KEY
-                        if hasattr(proc_pymod, "PROC_ENV_KEY")
-                        else None
-                    )
-                    if key is not None:
-                        rediskeys_in_use.append(key)
-                    key = (
-                        proc_pymod.PROC_INP_KEY
-                        if hasattr(proc_pymod, "PROC_INP_KEY")
-                        else None
-                    )
-                    if key is not None:
-                        rediskeys_in_use.append(key)
-                    key = (
-                        proc_pymod.PROC_ARG_KEY
-                        if hasattr(proc_pymod, "PROC_ARG_KEY")
-                        else None
-                    )
-                    if key is not None:
-                        rediskeys_in_use.append(key)
+                
+                for proc_key in [
+                    "PROC_ENV_KEY",
+                    "PROC_INP_KEY",
+                    "PROC_ARG_KEY"
+                ]:
+                    if hasattr(proc_pymod, proc_key):
+                        rediskeys_in_use.append(getattr(proc_pymod, proc_key))
+
             ppkv.clear(exclusion_list=rediskeys_in_use)
 
         ppkv.set("STATUS", "%s" % (STATUS_STR + "." * int(ellipsis_count)))
@@ -112,10 +116,10 @@ def publish_status_thr(ppkv, sleep_interval):
         ellipsis_count = (ellipsis_count + 1) % 4
 
 
-def import_stage(stagename, reloadFlagDict, stagePrefix="postproc"):
-    if stagename not in globals():  # stagename not in sys.modules:
+def import_stage(stagename, reloadFlagDict, stagePrefix="postproc", definition_dict=globals()):
+    if stagename not in definition_dict:  # stagename not in sys.modules:
         try:
-            globals()[stagename] = importlib.import_module(f"{stagePrefix}_{stagename}")
+            definition_dict[stagename] = importlib.import_module(f"{stagePrefix}_{stagename}")
         except ModuleNotFoundError:
             print(
                 "Could not find {}.py stage!".format(
@@ -129,7 +133,7 @@ def import_stage(stagename, reloadFlagDict, stagePrefix="postproc"):
         return True
     elif reloadFlagDict[stagename]:
         try:
-            globals()[stagename] = importlib.reload(globals()[stagename])
+            definition_dict[stagename] = importlib.reload(definition_dict[stagename])
         except ModuleNotFoundError:
             print(
                 "Could not find {}.py stage to reload, keeping old load!".format(
@@ -151,7 +155,7 @@ def replace_instance_keywords(keyword_dict, string):
             if not isinstance(keyword_dict[keyword], list)
             else " ".join(map(str, keyword_dict[keyword]))
         )
-        string = string.replace("${}$".format(keyword), keyword_value)
+        string = string.replace(f"${keyword}$", keyword_value)
     return string
 
 
