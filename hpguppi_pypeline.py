@@ -122,8 +122,9 @@ def import_stage(stagename, reloadFlagDict, stagePrefix="postproc", definition_d
             definition_dict[stagename] = importlib.import_module(f"{stagePrefix}_{stagename}")
         except ModuleNotFoundError:
             print(
-                "Could not find {}.py stage!".format(
-                    os.path.join(script_dir, f"{stagePrefix}_{stagename}")
+                "Could not find {}.py stage:\n\t{}".format(
+                    f"{stagePrefix}_{stagename}",
+                    "\n\t".join(sys.path)
                 )
             )
             return False
@@ -136,8 +137,9 @@ def import_stage(stagename, reloadFlagDict, stagePrefix="postproc", definition_d
             definition_dict[stagename] = importlib.reload(definition_dict[stagename])
         except ModuleNotFoundError:
             print(
-                "Could not find {}.py stage to reload, keeping old load!".format(
-                    os.path.join(script_dir, f"{stagePrefix}_{stagename}")
+                "Could not find {}.py stage to reload, keeping old load:\n\t{}".format(
+                    f"{stagePrefix}_{stagename}",
+                    "\n\t".join(sys.path)
                 )
             )
             return True
@@ -262,8 +264,6 @@ def print_proc_dict_progress(
 
 reloadFlagDict = {}
 
-script_dir, _ = os.path.split(os.path.realpath(__file__))
-
 parser = argparse.ArgumentParser(
     description="A pythonic pipeline executable, with a Redis interface.",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -278,21 +278,12 @@ parser.add_argument(
     help="key=value strings to set in the pypeline's Redis Hash.",
 )
 parser.add_argument(
-    "--stage-dir",
-    type=str,
-    default=script_dir,
-    help="The directory path of all the scripts.",
-)
-parser.add_argument(
     "--redis-hostname",
     type=str,
     default="redishost",
     help="The hostname of the Redis server.",
 )
 args = parser.parse_args()
-
-print("postproc_stages.py taken to be in", script_dir)
-sys.path.insert(0, script_dir)
 
 assert import_stage(args.procstage, reloadFlagDict, stagePrefix="proc")
 
