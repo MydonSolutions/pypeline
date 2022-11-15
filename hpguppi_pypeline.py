@@ -112,7 +112,7 @@ def publish_status_thr(ppkv, sleep_interval):
             ppkv.clear(exclusion_list=rediskeys_in_use)
 
         ppkv.set("STATUS", "%s" % (STATUS_STR + "." * int(ellipsis_count)))
-        ppkv.set("PULSE", "%s" % (datetime.now().strftime("%a %b %d %H:%M:%S %Y")))
+        ppkv.set("PULSE", "%s" % (datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
         ellipsis_count = (ellipsis_count + 1) % 4
 
 
@@ -313,11 +313,7 @@ ppkv = PostProcKeyValues(
 )
 
 ppkv.set("#PRIMARY", args.procstage)
-
-globals()[args.procstage].setup(
-    instance_keywords["hnme"],
-    instance_keywords["inst"],
-)
+initialstage = None
 
 for kvstr in args.kv:
     delim_idx = kvstr.index("=")
@@ -332,19 +328,33 @@ time.sleep(1)
 
 while True:
     STATUS_STR = "WAITING"
+    new_initialstage = ppkv.get("#PRIMARY")
+    if new_initialstage != initialstage:
+        reloadFlagDict[new_initialstage] = True
+        if not import_stage(new_initialstage, reloadFlagDict, stagePrefix="proc"):
+            print(f"Could not load new Primary Stage: `{new_initialstage}`. Maintaining current Primary Stage: `{initialstage}`.")
+            ppkv.set("#PRIMARY", initialstage)
+        else:
+            initialstage = new_initialstage
+            globals()[initialstage].setup(
+                instance_keywords["hnme"],
+                instance_keywords["inst"],
+            )
+
     # Wait until the process-stage returns outputs
     try:
-        proc_outputs = globals()[args.procstage].run()
+        proc_outputs = globals()[initialstage].run()
     except KeyboardInterrupt:
         STATUS_STR = "EXITING"
         status_thread.join()
         exit(0)
 
-    if proc_outputs == False:
+    if proc_outputs is None:
+        continue
+    if proc_outputs is False:
         STATUS_STR = "EXITING"
         status_thread.join()
         exit(0)
-
     if len(proc_outputs) == 0:
         print("No captured data found for post-processing.")
         continue
@@ -371,7 +381,7 @@ while True:
     postproc_lastinput = {}
     postproc_args = {}
     postproc_argindices = {}
-    postproc_outputs = {args.procstage: proc_outputs}
+    postproc_outputs = {initialstage: proc_outputs}
     attempt = 0
 
     procindex = 0
@@ -427,7 +437,7 @@ while True:
         if not fetch_proc_key_value(envkey, proc, postproc_envvar, None, ppkv, None):
             break
 
-        globals()[args.procstage].setupstage(globals()[proc])
+        globals()[initialstage].setupstage(globals()[proc])
 
         if proc not in postproc_inputindices:
             postproc_inputindices[proc] = 0
