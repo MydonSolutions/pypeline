@@ -329,7 +329,12 @@ def process(
         checkpoint_time = time.time()
 
         stage_logger = logging.getLogger(f"{identifier}.{stage_name}")
-        stage_output_dict[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
+        try:
+            stage_output_dict[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
+        except BaseException as err:
+            logger.error(f"{stage_name}: {repr(err)}")
+            redis_interface.set_status(f"ERROR: {stage_name}-{repr(err)}")
+            return
 
         logger.info(
             "^^^^^^^^^^^^^^^^^ {:^12s} ^^^^^^^^^^^^^^^^^".format(
