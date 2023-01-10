@@ -52,6 +52,6 @@ class RedisInterface(object):
     def set_status(self, status):
         key = "STATUS"
         if self.sub_instance_id is not None:
-            key = f"STATUS:{sub_instance_id}"
+            key = f"STATUS:{self.sub_instance_id}"
 
         self.set(key, status)
