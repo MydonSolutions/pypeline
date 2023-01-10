@@ -174,8 +174,11 @@ def get_redis_keys_in_use(
             "INP_KEY",
             "ARG_KEY"
         ]:
-            if hasattr(stage, proc_key):
-                rediskeys_in_use.append(getattr(stage, proc_key))
+            if not hasattr(stage, proc_key):
+                continue
+            attr = getattr(stage, proc_key)
+            if attr is not None:
+                rediskeys_in_use.append(attr)
 
     return rediskeys_in_use
 
