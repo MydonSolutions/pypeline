@@ -86,7 +86,7 @@ def main():
         redis_interface.set(kvstr[0:delim_idx], kvstr[delim_idx + 1 :])
 
     previous_stage_list = None
-    cleanup_stability_factor = 2
+    cleanup_stability_factor = 5
     process_changed_count = 0
     process_asyncobj_jobs = {
         Identifier(instance_hostname, instance_id, process_index): None
@@ -144,7 +144,7 @@ def main():
                 exclusion_list = get_redis_keys_in_use(
                     stage_list.split(' ')
                 )
-                logger.info("Clear all except:", exclusion_list)
+                logger.info(f"Clear all except: {exclusion_list}")
                 redis_interface.clear(exclusion_list)
 
             new_initial_stage_name = redis_interface.get("#PRIMARY")
