@@ -85,7 +85,7 @@ def main():
         delim_idx = kvstr.index("=")
         redis_interface.set(kvstr[0:delim_idx], kvstr[delim_idx + 1 :])
 
-    previous_stage_list = redis_interface.get("#STAGES")
+    previous_stage_list = None
     cleanup_stability_factor = 2
     process_changed_count = 0
     process_asyncobj_jobs = {
