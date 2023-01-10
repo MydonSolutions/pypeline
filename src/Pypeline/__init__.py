@@ -1,11 +1,12 @@
 import time
 import importlib
 import logging
-import sys
+import os, sys
 import redis
 
 from .redis_interface import RedisInterface
 from .identifier import Identifier
+from .log_formatter import LogFormatter
 
 def import_stage(
     stagename,
@@ -182,8 +183,8 @@ def get_redis_keys_in_use(
 def process(
     identifier: Identifier,
     keyvalues: dict,
-    stage_dict: dict,
     stage_output_dict: dict,
+    initial_stage_dehydrated: tuple,
     redis_hostname: str = None,
     redis_port: int = None,
 ):
@@ -201,9 +202,11 @@ def process(
         Logs with `logging.getLogger(str(identifier))`
     '''
     logger = logging.getLogger(str(identifier))
-    logger.info(f"{keyvalues}")
 
-    initialstage = list(stage_dict.keys())[0]
+    initialstage_name = list(stage_output_dict.keys())[0]
+    stage_dict = {}
+    import_stage(initialstage_name, stagePrefix="proc", definition_dict=stage_dict)
+    stage_dict[initialstage_name].rehydrate(initial_stage_dehydrated)
 
     redis_interface = RedisInterface(
         identifier.hostname,
@@ -292,7 +295,7 @@ def process(
                 % (stage_name, len(pypeline_stage_popened[stage_name]))
             )
 
-        stage_dict[initialstage].setupstage(stage_dict[stage_name])
+        stage_dict[initialstage_name].setupstage(stage_dict[stage_name])
 
         if pypeline_inputindices[stage_name] == 0:
             # Parse the input_template and create the input list from permutations
@@ -412,3 +415,4 @@ def process(
             logger.info(progress_str)
 
             logger.info(f"Rewound to {stage_names[stage_index]}")
+    return 3.141592

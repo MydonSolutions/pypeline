@@ -1,3 +1,4 @@
+import os
 import argparse
 import time
 import socket
@@ -7,10 +8,10 @@ import multiprocessing as mp
 
 import redis
 
-from Pypeline import import_stage, get_redis_keys_in_use, process
-from Pypeline.identifier import Identifier
-from Pypeline.redis_interface import RedisInterface
-from Pypeline.log_formatter import LogFormatter
+from . import import_stage, get_redis_keys_in_use, process as PypelineProcess
+from .identifier import Identifier
+from .redis_interface import RedisInterface
+from .log_formatter import LogFormatter
 
 
 def main():
@@ -28,6 +29,12 @@ def main():
         type=int,
         default=4,
         help="The number of parallel processes to pool.",
+    )
+    parser.add_argument(
+        "--log-directory",
+        type=str,
+        default=None,
+        help="The directory in which to log.",
     )
     parser.add_argument(
         "-kv",
@@ -85,27 +92,32 @@ def main():
         Identifier(instance_hostname, instance_id, process_index): None
         for process_index in range(args.workers)
     }
-    process_queue = mp.SimpleQueue()
+    process_queue = []
 
-    for process_identifier in process_asyncobj_jobs.keys():
-        logger = logging.getLogger(str(process_identifier))
-        ch = logging.StreamHandler()
-        ch.setFormatter(LogFormatter())
-        logger.addHandler(ch)
-        logger.setLevel(logging.INFO)
+    logger = logging.getLogger(f"{instance_hostname}:{instance_id}")
+    ch = logging.StreamHandler()
+    ch.setFormatter(LogFormatter())
+    logger.addHandler(ch)
+    if args.log_directory is not None:
+        fh = logging.FileHandler(os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"))
+        fh.setFormatter(LogFormatter())
+        logger.addHandler(fh)
+    logger.setLevel(logging.INFO)
 
-    with Pool(processes=args.workers) as pool:
+    with mp.Pool(processes=args.workers) as pool:
     
         while True:
             for process_id, process_async_obj in process_asyncobj_jobs.items():
-                if process_async_obj.ready():
+                if process_async_obj is not None and process_async_obj.ready():
                     logger.info(f"Process #{process_id} is complete.")
+                    logger.info(f"\tSuccessfully: {process_asyncobj_jobs[process_id].successful()}.")
+                    logger.info(f"\tReturning: {process_asyncobj_jobs[process_id].get()}.")
                     process_asyncobj_jobs[process_id] = None
-                if process_asyncobj_jobs[process_id] is None and not process_queue.empty():
-                    process_args = process_queue.get()
+                if process_asyncobj_jobs[process_id] is None and len(process_queue) > 0:
+                    process_args = process_queue.pop(0)
                     logger.info(f"#Spawning Process #{process_id}:\n\t#STAGES={process_args[0].get('#STAGES', None)}\n\t{process_args[2]}")
                     process_asyncobj_jobs[process_id] = pool.apply_async(
-                        process,
+                        PypelineProcess,
                         (
                             process_id,
                             *process_args
@@ -153,30 +165,46 @@ def main():
             try:
                 proc_outputs = initial_stage.run()
             except KeyboardInterrupt:
+                logger.info("Keyboard Interrupt")
                 exit(0)
 
             if proc_outputs is None:
                 continue
             if proc_outputs is False:
+                logger.info(f"{initial_stage_name}.run() returned False. Awaiting processes...")
+                while True:
+                    processing = False
+                    for process_id, process_async_obj in process_asyncobj_jobs.items():
+                        if process_async_obj is None:
+                            continue
+                        if process_async_obj.ready():
+                            logger.info(f"Process #{process_id} is complete.")
+                            logger.info(f"\tSuccessfully: {process_asyncobj_jobs[process_id].successful()}.")
+                            logger.info(f"\tReturning: {process_asyncobj_jobs[process_id].get()}.")
+                            process_asyncobj_jobs[process_id] = None
+                        else:
+                            processing = True
+                    if not processing:
+                        break
                 exit(0)
             if len(proc_outputs) == 0:
-                print("No captured data found for post-processing.")
+                logger.info("No captured data found for post-processing.")
                 continue
 
             redis_cache = redis_interface.get_all()
             postproc_str = redis_cache.get("#STAGES", None)
             if postproc_str is None:
-                print("#STAGES key is not found. Not post-processing.")
+                logger.warn("#STAGES key is not found. Not post-processing.")
                 continue
             if "skip" in postproc_str[0:4]:
-                print("#STAGES key begins with skip, not post-processing.")
+                logger.info("#STAGES key begins with skip, not post-processing.")
                 continue
 
-            process_queue.put(
+            process_queue.append(
                 (
                     redis_cache,
-                    {initial_stage_name: initial_stage},
                     {initial_stage_name: proc_outputs},
+                    initial_stage.dehydrate(),
                     args.redis_hostname,
                     args.redis_port,
                 )

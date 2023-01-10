@@ -22,6 +22,16 @@ def setup(hostname, instance, logger = None):
     logger.info("Test process-stage setup:", STATE_data)
 
 
+def dehydrate():
+    return (STATE_data, STATE_context)
+
+
+def rehydrate(dehydration_tuple):
+    global STATE_data, STATE_context
+    STATE_data = dehydration_tuple[0]
+    STATE_context = dehydration_tuple[1]
+
+
 def run(logger = None):
     if logger is None:
         logger = logging.getLogger(NAME)
