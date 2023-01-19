@@ -23,6 +23,7 @@ def setup(hostname, instance, logger = None):
 
 
 def dehydrate():
+    global STATE_data, STATE_context
     return (STATE_data, STATE_context)
 
 
