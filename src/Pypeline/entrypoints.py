@@ -2,6 +2,7 @@ import os
 import argparse
 import time
 import socket
+import json
 import logging
 import traceback
 from datetime import datetime
@@ -93,6 +94,11 @@ def main():
         Identifier(instance_hostname, instance_id, process_index): None
         for process_index in range(args.workers)
     }
+    process_last_errors = {
+        process_id: None
+        for process_id in process_asyncobj_jobs.keys()
+    }
+    process_occupancy = 0
     process_queue = []
 
     logger = logging.getLogger(f"{instance_hostname}:{instance_id}")
@@ -114,9 +120,11 @@ def main():
                     logger.info(f"\tSuccessfully: {process_async_obj.successful()}.")
                     try:
                         logger.info(f"\tReturning: {process_async_obj.get()}.")
-                    except:
+                    except BaseException as err:
                         logger.error(f"\tTraceback: {traceback.format_exc()}.")
+                        process_last_errors[process_id] = f"{time.time()}-{repr(err)}"
                     process_asyncobj_jobs[process_id] = None
+                    process_occupancy -= 1
                 if process_asyncobj_jobs[process_id] is None and len(process_queue) > 0:
                     process_args = process_queue.pop(0)
                     logger.debug(f"type(process_args): {type(process_args)}")
@@ -124,17 +132,19 @@ def main():
                     process_asyncobj_jobs[process_id] = pool.apply_async(
                         PypelineProcess,
                         (
-                            Identifier(
-                                process_id.hostname,
-                                process_id.enumeration,
-                                process_id.process_enumeration,
-                            ),
+                            process_id,
                             *process_args
                         )
                     )
+                    process_occupancy += 1
                 
             stage_list = redis_interface.get("#STAGES")
             redis_interface.set("PULSE", "%s" % (datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
+            redis_interface.set("STATUS", f"{process_occupancy}/{args.workers} ({len(process_queue)} queued)")
+            redis_interface.set("ERRORS", json.dumps({
+                str(process_id): error
+                for process_id, error in process_last_errors.items()
+            }))
 
             redis_interface.get_broadcast_messages(0.1)
             
@@ -194,6 +204,7 @@ def main():
                             except:
                                 logger.error(f"\tTraceback: {traceback.format_exc()}.")
                             process_asyncobj_jobs[process_id] = None
+                            process_occupancy -= 1
                         else:
                             processing = True
                     if not processing:

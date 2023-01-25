@@ -237,6 +237,7 @@ def process(
         ),
         sub_instance_id = identifier.process_enumeration
     )
+    redis_interface.set_status(f"{time.time()}-Start")
 
     keywords = {
         "hnme": identifier.hostname,
@@ -298,7 +299,7 @@ def process(
 
         # wait on any previous POPENED
         if stage_name[-1] == "&" and stage_name in pypeline_stage_popened:
-            redis_interface.set_status(f"POLL LAST DETACHED {stage_name}")
+            redis_interface.set_status(f"{time.time()}-POLL LAST DETACHED {stage_name}")
             for popenIdx, popen in enumerate(pypeline_stage_popened[stage_name]):
                 poll_count = 0
                 while popen.poll() is None:
@@ -328,7 +329,7 @@ def process(
             logger.debug(f"{stage_name} inputs:{ pypeline_inputs[stage_name]}")
             assert pypeline_inputs[stage_name]
 
-        redis_interface.set_status(stage_name)
+        redis_interface.set_status(f"{time.time()}-{stage_name}")
 
         inp = pypeline_inputs[stage_name][pypeline_inputindices[stage_name]]
         assert inp
@@ -354,9 +355,10 @@ def process(
         try:
             stage_output_dict[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
         except BaseException as err:
-            logger.error(f"{stage_name}: {repr(err)}")
-            redis_interface.set_status(f"ERROR: {stage_name}-{repr(err)}")
-            raise err
+            message = f"{repr(err)} ({stage_name})"
+            logger.error(message)
+            redis_interface.set_status(f"{time.time()}-Error encountered: {message}")
+            raise RuntimeError(message) from err
 
         logger.info(
             "^^^^^^^^^^^^^^^^^ {:^12s} ^^^^^^^^^^^^^^^^^".format(
@@ -420,7 +422,7 @@ def process(
             # Break if there are no novel process argument-input permutations
             if stage_index < 0:
                 logger.info("Post Processing Done!")
-                redis_interface.set_status("Done")
+                redis_interface.set_status(f"{time.time()}-Done")
                 break
             progress_str = get_proc_dict_progress_str(
                 stage_name,
