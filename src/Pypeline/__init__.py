@@ -3,6 +3,7 @@ import importlib
 import logging
 import os, sys
 import redis
+import traceback
 
 from .redis_interface import RedisInterface
 from .identifier import Identifier
@@ -21,9 +22,17 @@ def import_stage(
             definition_dict[stagename] = importlib.import_module(f"{stagePrefix}_{stagename}")
         except ModuleNotFoundError:
             log_error_func(
-                "Could not find {}.py stage:\n\t{}".format(
+                "Could not find the {}.py stage:\n\t{}".format(
                     f"{stagePrefix}_{stagename}",
                     "\n\t".join(sys.path)
+                )
+            )
+            return False
+        except:
+            log_error_func(
+                "Could not import the {}.py stage:\n\t{}".format(
+                    f"{stagePrefix}_{stagename}",
+                    traceback.format_exc()
                 )
             )
             return False
@@ -36,9 +45,17 @@ def import_stage(
         definition_dict[stagename] = importlib.reload(definition_dict[stagename])
     except ModuleNotFoundError:
         log_error_func(
-            "Could not find {}.py stage to reload, keeping old load:\n\t{}".format(
+            "Could not find the {}.py stage to reload, keeping existing version:\n\t{}".format(
                 f"{stagePrefix}_{stagename}",
                 "\n\t".join(sys.path)
+            )
+        )
+        return True
+    except:
+        log_error_func(
+            "Could not reload the {}.py stage, keeping existing version:\n\t{}".format(
+                f"{stagePrefix}_{stagename}",
+                traceback.format_exc()
             )
         )
         return True
@@ -188,8 +205,8 @@ def process(
     keyvalues: dict,
     stage_output_dict: dict,
     initial_stage_dehydrated: tuple,
-    redis_hostname: str = None,
-    redis_port: int = None,
+    redis_hostname: str,
+    redis_port: int,
 ):
     '''
     Params:
@@ -197,18 +214,17 @@ def process(
             The identifier of the process operation (pypeline)
         keyvalues: dict
             Holds '#STAGES' and all the keys appropriate to each stage listed in '#STAGES'
-        stage_dict: dict
-            An import dictionary holding only the initial-stage
         stage_output_dict: dict
             A dictionary holding only the output of the initial-stage
     
         Logs with `logging.getLogger(str(identifier))`
     '''
     logger = logging.getLogger(str(identifier))
+    logger.info(f"{identifier} started.")
 
     initialstage_name = list(stage_output_dict.keys())[0]
     stage_dict = {}
-    import_stage(initialstage_name, stagePrefix="proc", definition_dict=stage_dict)
+    import_stage(initialstage_name, stagePrefix="proc", definition_dict=stage_dict, logger=logger)
     stage_dict[initialstage_name].rehydrate(initial_stage_dehydrated)
 
     redis_interface = RedisInterface(
@@ -340,7 +356,7 @@ def process(
         except BaseException as err:
             logger.error(f"{stage_name}: {repr(err)}")
             redis_interface.set_status(f"ERROR: {stage_name}-{repr(err)}")
-            return
+            raise err
 
         logger.info(
             "^^^^^^^^^^^^^^^^^ {:^12s} ^^^^^^^^^^^^^^^^^".format(
@@ -418,4 +434,3 @@ def process(
             logger.info(progress_str)
 
             logger.info(f"Rewound to {stage_names[stage_index]}")
-    return 3.141592

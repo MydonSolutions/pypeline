@@ -16,9 +16,9 @@ class LogFormatter(logging.Formatter):
 
         format_orig = self._fmt
         if record.levelno == logging.DEBUG:
-            self._fmt = MyFormatter.debug_fmt
+            self._fmt = LogFormatter.debug_fmt
         elif record.levelno == logging.ERROR:
-            self._fmt = MyFormatter.debug_fmt
+            self._fmt = LogFormatter.debug_fmt
 
         result = logging.Formatter.format(self, record)
         self._fmt = format_orig

@@ -3,6 +3,7 @@ import argparse
 import time
 import socket
 import logging
+import traceback
 from datetime import datetime
 import multiprocessing as mp
 
@@ -102,7 +103,7 @@ def main():
         fh = logging.FileHandler(os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"))
         fh.setFormatter(LogFormatter())
         logger.addHandler(fh)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     with mp.Pool(processes=args.workers) as pool:
     
@@ -110,16 +111,24 @@ def main():
             for process_id, process_async_obj in process_asyncobj_jobs.items():
                 if process_async_obj is not None and process_async_obj.ready():
                     logger.info(f"Process #{process_id} is complete.")
-                    logger.info(f"\tSuccessfully: {process_asyncobj_jobs[process_id].successful()}.")
-                    logger.info(f"\tReturning: {process_asyncobj_jobs[process_id].get()}.")
+                    logger.info(f"\tSuccessfully: {process_async_obj.successful()}.")
+                    try:
+                        logger.info(f"\tReturning: {process_async_obj.get()}.")
+                    except:
+                        logger.error(f"\tTraceback: {traceback.format_exc()}.")
                     process_asyncobj_jobs[process_id] = None
                 if process_asyncobj_jobs[process_id] is None and len(process_queue) > 0:
                     process_args = process_queue.pop(0)
-                    logger.info(f"#Spawning Process #{process_id}:\n\t#STAGES={process_args[0].get('#STAGES', None)}\n\t{process_args[2]}")
+                    logger.debug(f"type(process_args): {type(process_args)}")
+                    logger.info(f"Spawning Process #{process_id}:\n\t#STAGES={process_args[0].get('#STAGES', None)}\n\t{process_args[2]}")
                     process_asyncobj_jobs[process_id] = pool.apply_async(
                         PypelineProcess,
                         (
-                            process_id,
+                            Identifier(
+                                process_id.hostname,
+                                process_id.enumeration,
+                                process_id.process_enumeration,
+                            ),
                             *process_args
                         )
                     )
@@ -153,17 +162,17 @@ def main():
                     logger.warn(f"Could not load new Primary Stage: `{new_initial_stage_name}`. Maintaining current Primary Stage: `{initial_stage_name}`.")
                     redis_interface.set("#PRIMARY", initial_stage_name)
                 else:
-                    initial_stage_dict.pop(initial_stage_name)
                     initial_stage_name = new_initial_stage_name
                     initial_stage = initial_stage_dict.pop(initial_stage_name)
                     initial_stage.setup(
                         instance_hostname,
                         instance_id,
+                        logger=logger
                     )
 
             # Wait until the process-stage returns outputs
             try:
-                proc_outputs = initial_stage.run()
+                proc_outputs = initial_stage.run(logger=logger)
             except KeyboardInterrupt:
                 logger.info("Keyboard Interrupt")
                 exit(0)
@@ -180,7 +189,10 @@ def main():
                         if process_async_obj.ready():
                             logger.info(f"Process #{process_id} is complete.")
                             logger.info(f"\tSuccessfully: {process_asyncobj_jobs[process_id].successful()}.")
-                            logger.info(f"\tReturning: {process_asyncobj_jobs[process_id].get()}.")
+                            try:
+                                logger.info(f"\tReturning: {process_asyncobj_jobs[process_id].get()}.")
+                            except:
+                                logger.error(f"\tTraceback: {traceback.format_exc()}.")
                             process_asyncobj_jobs[process_id] = None
                         else:
                             processing = True
