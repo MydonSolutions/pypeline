@@ -59,6 +59,8 @@ def main():
     )
     args = parser.parse_args()
 
+    mp.set_start_method("fork")
+
     initial_stage_dict = {}
     initial_stage_name = args.procstage
     assert import_stage(initial_stage_name, stagePrefix="proc", definition_dict=initial_stage_dict)
@@ -94,8 +96,12 @@ def main():
         Identifier(instance_hostname, instance_id, process_index): None
         for process_index in range(args.workers)
     }
-    process_last_errors = {
-        process_id: None
+    process_state_last_timestamps = {
+        str(process_id): {
+            "Start": None,
+            "Finish": None,
+            "Error": None,
+        }
         for process_id in process_asyncobj_jobs.keys()
     }
     process_occupancy = 0
@@ -111,6 +117,7 @@ def main():
         logger.addHandler(fh)
     logger.setLevel(logging.DEBUG)
 
+    proc_outputs = None
     with mp.Pool(processes=args.workers) as pool:
     
         while True:
@@ -120,9 +127,10 @@ def main():
                     logger.info(f"\tSuccessfully: {process_async_obj.successful()}.")
                     try:
                         logger.info(f"\tReturning: {process_async_obj.get()}.")
+                        process_state_last_timestamps[str(process_id)]["Finish"] = time.time()
                     except BaseException as err:
                         logger.error(f"\tTraceback: {traceback.format_exc()}.")
-                        process_last_errors[process_id] = f"{time.time()}-{repr(err)}"
+                        process_state_last_timestamps[str(process_id)]["Error"] = time.time()
                     process_asyncobj_jobs[process_id] = None
                     process_occupancy -= 1
                 if process_asyncobj_jobs[process_id] is None and len(process_queue) > 0:
@@ -136,15 +144,20 @@ def main():
                             *process_args
                         )
                     )
+                    process_state_last_timestamps[str(process_id)] = time.time()
                     process_occupancy += 1
                 
             stage_list = redis_interface.get("#STAGES")
             redis_interface.set("PULSE", "%s" % (datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
             redis_interface.set("STATUS", f"{process_occupancy}/{args.workers} ({len(process_queue)} queued)")
-            redis_interface.set("ERRORS", json.dumps({
-                str(process_id): error
-                for process_id, error in process_last_errors.items()
-            }))
+            redis_interface.set("PROCESSES", json.dumps(process_state_last_timestamps))
+
+            if proc_outputs is False:
+                if process_occupancy > 0:
+                    # continue to wait on processes
+                    continue
+                logger.info(f"{initial_stage_name}.run() returned False. Exiting")
+                exit(0)
 
             redis_interface.get_broadcast_messages(0.1)
             
@@ -184,32 +197,16 @@ def main():
             try:
                 proc_outputs = initial_stage.run(logger=logger)
             except KeyboardInterrupt:
-                logger.info("Keyboard Interrupt")
-                exit(0)
+                logger.info("Keyboard Interrupt. Awaiting processes...")
+                proc_outputs = False
+                continue
 
             if proc_outputs is None:
                 continue
             if proc_outputs is False:
-                logger.info(f"{initial_stage_name}.run() returned False. Awaiting processes...")
-                while True:
-                    processing = False
-                    for process_id, process_async_obj in process_asyncobj_jobs.items():
-                        if process_async_obj is None:
-                            continue
-                        if process_async_obj.ready():
-                            logger.info(f"Process #{process_id} is complete.")
-                            logger.info(f"\tSuccessfully: {process_asyncobj_jobs[process_id].successful()}.")
-                            try:
-                                logger.info(f"\tReturning: {process_asyncobj_jobs[process_id].get()}.")
-                            except:
-                                logger.error(f"\tTraceback: {traceback.format_exc()}.")
-                            process_asyncobj_jobs[process_id] = None
-                            process_occupancy -= 1
-                        else:
-                            processing = True
-                    if not processing:
-                        break
-                exit(0)
+                logger.info(f"{initial_stage_name}.run() returned False. Awaiting processes: {process_occupancy}/{args.workers} ({len(process_queue)} queued)")
+                continue
+                
             if len(proc_outputs) == 0:
                 logger.info("No captured data found for post-processing.")
                 continue

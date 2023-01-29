@@ -176,7 +176,7 @@ def get_redis_keys_in_use(
         definition_dict = {}
 
     # clear unused redis-hash keys
-    rediskeys_in_use = ["#PRIMARY", "#STAGES", "STATUS", "PULSE"]
+    rediskeys_in_use = ["#PRIMARY", "#STAGES", "STATUS", "PULSE", "PROCESSES"]
     for stage_name in stage_list_in_use:
 
         if stage_name == "skip":
@@ -299,7 +299,7 @@ def process(
 
         # wait on any previous POPENED
         if stage_name[-1] == "&" and stage_name in pypeline_stage_popened:
-            redis_interface.set_status(f"{time.time()}-POLL LAST DETACHED {stage_name}")
+            redis_interface.set_status(f"{time.time()}-Poll detached {stage_name}")
             for popenIdx, popen in enumerate(pypeline_stage_popened[stage_name]):
                 poll_count = 0
                 while popen.poll() is None:
@@ -357,7 +357,7 @@ def process(
         except BaseException as err:
             message = f"{repr(err)} ({stage_name})"
             logger.error(message)
-            redis_interface.set_status(f"{time.time()}-Error encountered: {message}")
+            redis_interface.set_status(f"{time.time()}-Error: {message}")
             raise RuntimeError(message) from err
 
         logger.info(

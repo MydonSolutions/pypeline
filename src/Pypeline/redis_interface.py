@@ -46,7 +46,8 @@ class RedisInterface(object):
             return False
         # TODO rather implement redis_obj.hset(, mapping={})
         for keyvaluestr in message.get("data").decode().split("\n"):
-            self.set(*(keyvaluestr.split("=")))
+            parts = keyvaluestr.split("=")
+            self.set(parts[0], '='.join(parts[1:]))
         return True
 
     def set_status(self, status):
