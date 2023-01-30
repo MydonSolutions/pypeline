@@ -144,7 +144,7 @@ def main():
                             *process_args
                         )
                     )
-                    process_state_last_timestamps[str(process_id)] = time.time()
+                    process_state_last_timestamps[str(process_id)]["Start"] = time.time()
                     process_occupancy += 1
                 
             stage_list = redis_interface.get("#STAGES")
