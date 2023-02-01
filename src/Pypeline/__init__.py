@@ -249,6 +249,7 @@ def process(
     if hasattr(context, "note"):
         context.note(
             ProcessNote.Start,
+            process_id = identifier,
             redis_kvcache = parameters.redis_kvcache,
             logger = logger,
         )
@@ -376,6 +377,7 @@ def process(
         if hasattr(context, "note"):
             context.note(
                 ProcessNote.StageStart,
+                process_id = identifier,
                 redis_kvcache = parameters.redis_kvcache,
                 logger = logger,
                 stage = stage_dict[stage_name],
@@ -393,6 +395,7 @@ def process(
             if hasattr(context, "note"):
                 context.note(
                     ProcessNote.StageError,
+                    process_id = identifier,
                     redis_kvcache = parameters.redis_kvcache,
                     logger = logger,
                     stage = stage_dict[stage_name],
@@ -417,6 +420,7 @@ def process(
         if hasattr(context, "note"):
             context.note(
                 ProcessNote.StageFinish,
+                process_id = identifier,
                 redis_kvcache = parameters.redis_kvcache,
                 logger = logger,
                 stage = stage_dict[stage_name],
@@ -487,6 +491,7 @@ def process(
     if hasattr(context, "note"):
         context.note(
             ProcessNote.Finish,
+            process_id = identifier,
             redis_kvcache = parameters.redis_kvcache,
             logger = logger,
         )
