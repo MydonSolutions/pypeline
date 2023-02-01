@@ -10,10 +10,19 @@ import multiprocessing as mp
 
 import redis
 
-from . import import_stage, get_redis_keys_in_use, process as PypelineProcess
+from . import REDIS_KEYS, import_module, get_stage_keys, process as PypelineProcess, ProcessNote, ProcessParameters
 from .identifier import Identifier
 from .redis_interface import RedisInterface
 from .log_formatter import LogFormatter
+
+
+def _isolated_context_rehydration(process_parameters: ProcessParameters, logger: logging.Logger):
+    context_name = list(process_parameters.stage_outputs.keys())[0]
+    tmp_stage_dict = {}
+    import_module(context_name, modulePrefix="context", definition_dict=tmp_stage_dict, logger=logger)
+    context = tmp_stage_dict[context_name]
+    context.rehydrate(process_parameters.dehydrated_context)
+    return context
 
 
 def main():
@@ -24,7 +33,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("instance", type=int, help="The instance ID of the pypeline.")
-    parser.add_argument("procstage", type=str, help="The name of process stage.")
+    parser.add_argument("context", type=str, help="The name of the context.")
     parser.add_argument(
         "--workers",
         "-w",
@@ -61,14 +70,14 @@ def main():
 
     mp.set_start_method("fork")
 
-    initial_stage_dict = {}
-    initial_stage_name = args.procstage
-    assert import_stage(initial_stage_name, stagePrefix="proc", definition_dict=initial_stage_dict)
-    initial_stage = initial_stage_dict.pop(initial_stage_name)
+    context_dict = {}
+    context_name = args.context
+    assert import_module(context_name, modulePrefix="context", definition_dict=context_dict)
+    context = context_dict.pop(context_name)
 
     instance_hostname = socket.gethostname()
     instance_id = args.instance
-    initial_stage.setup(
+    context.setup(
         instance_hostname,
         instance_id,
     )
@@ -83,7 +92,7 @@ def main():
         ),
     )
 
-    redis_interface.set("#PRIMARY", initial_stage_name)
+    redis_interface.set("#CONTEXT", context_name)
 
     for kvstr in args.kv:
         delim_idx = kvstr.index("=")
@@ -104,6 +113,10 @@ def main():
         }
         for process_id in process_asyncobj_jobs.keys()
     }
+    process_busy_parameters = {
+        str(process_id): None
+        for process_id in process_asyncobj_jobs.keys()
+    }
     process_occupancy = 0
     process_queue = []
 
@@ -117,7 +130,7 @@ def main():
         logger.addHandler(fh)
     logger.setLevel(logging.DEBUG)
 
-    proc_outputs = None
+    context_outputs = None
     with mp.Pool(processes=args.workers) as pool:
     
         while True:
@@ -125,25 +138,42 @@ def main():
                 if process_async_obj is not None and process_async_obj.ready():
                     logger.info(f"Process #{process_id} is complete.")
                     logger.info(f"\tSuccessfully: {process_async_obj.successful()}.")
+
+                    # rehydrate the initial stage to note completion
                     try:
                         logger.info(f"\tReturning: {process_async_obj.get()}.")
                         process_state_last_timestamps[str(process_id)]["Finish"] = time.time()
+
                     except BaseException as err:
                         logger.error(f"\tTraceback: {traceback.format_exc()}.")
                         process_state_last_timestamps[str(process_id)]["Error"] = time.time()
+
+                        process_context = _isolated_context_rehydration(
+                            process_busy_parameters[process_id],
+                            logger=logger
+                        )
+                        if hasattr(process_context, "note"):
+                            process_context.note(
+                                ProcessNote.Error,
+                                error = err,
+                                logger = logger
+                            )
+
                     process_asyncobj_jobs[process_id] = None
+                    process_busy_parameters[process_id] = None
                     process_occupancy -= 1
+
                 if process_asyncobj_jobs[process_id] is None and len(process_queue) > 0:
-                    process_args = process_queue.pop(0)
-                    logger.debug(f"type(process_args): {type(process_args)}")
-                    logger.info(f"Spawning Process #{process_id}:\n\t#STAGES={process_args[0].get('#STAGES', None)}\n\t{process_args[2]}")
+                    process_parameters = process_queue.pop(0)
+                    logger.info(f"Spawning Process #{process_id}:\n\t#STAGES={process_parameters.redis_kvcache.get('#STAGES', None)}\n\t{process_parameters.dehydrated_context}")
                     process_asyncobj_jobs[process_id] = pool.apply_async(
                         PypelineProcess,
                         (
                             process_id,
-                            *process_args
+                            process_parameters
                         )
                     )
+                    process_busy_parameters[process_id] = process_parameters
                     process_state_last_timestamps[str(process_id)]["Start"] = time.time()
                     process_occupancy += 1
                 
@@ -152,11 +182,11 @@ def main():
             redis_interface.set("STATUS", f"{process_occupancy}/{args.workers} ({len(process_queue)} queued)")
             redis_interface.set("PROCESSES", json.dumps(process_state_last_timestamps))
 
-            if proc_outputs is False:
+            if context_outputs is False:
                 if process_occupancy > 0:
                     # continue to wait on processes
                     continue
-                logger.info(f"{initial_stage_name}.run() returned False. Exiting")
+                logger.info(f"{context_name}.run() returned False. Exiting")
                 exit(0)
 
             redis_interface.get_broadcast_messages(0.1)
@@ -173,46 +203,57 @@ def main():
                 process_changed_count = 0
                 previous_stage_list = stage_list
 
-                exclusion_list = get_redis_keys_in_use(
+                exclusion_list = get_stage_keys(
                     stage_list.split(' ')
                 )
+                exclusion_list.extend(REDIS_KEYS)
+                exclusion_list.extend([f"STATUS:{process_index}" for process_index in range(args.workers)])
                 logger.info(f"Clear all except: {exclusion_list}")
                 redis_interface.clear(exclusion_list)
 
-            new_initial_stage_name = redis_interface.get("#PRIMARY")
-            if new_initial_stage_name != initial_stage_name:
-                if not import_stage(new_initial_stage_name, stagePrefix="proc", definition_dict=initial_stage_dict):
-                    logger.warn(f"Could not load new Primary Stage: `{new_initial_stage_name}`. Maintaining current Primary Stage: `{initial_stage_name}`.")
-                    redis_interface.set("#PRIMARY", initial_stage_name)
-                else:
-                    initial_stage_name = new_initial_stage_name
-                    initial_stage = initial_stage_dict.pop(initial_stage_name)
-                    initial_stage.setup(
+            new_context_name = redis_interface.get("#CONTEXT")
+            if new_context_name != context_name:
+                try:
+                    import_module(new_context_name, modulePrefix="context", definition_dict=context_dict)
+
+                    context_name = new_context_name
+                    context = context_dict.pop(context_name)
+                    context.setup(
                         instance_hostname,
                         instance_id,
                         logger=logger
                     )
+                except:
+                    logger.warn(f"Could not load new Context: `{new_context_name}`. Maintaining current Context: `{context_name}`.")
+                    redis_interface.set("#CONTEXT", context_name)
 
             # Wait until the process-stage returns outputs
             try:
-                proc_outputs = initial_stage.run(logger=logger)
+                context_outputs = context.run(
+                    env=redis_interface.get("#CONTEXTENV"),
+                    logger=logger
+                )
             except KeyboardInterrupt:
                 logger.info("Keyboard Interrupt. Awaiting processes...")
-                proc_outputs = False
+                context_outputs = False
                 continue
 
-            if proc_outputs is None:
+            if context_outputs is None:
                 continue
-            if proc_outputs is False:
-                logger.info(f"{initial_stage_name}.run() returned False. Awaiting processes: {process_occupancy}/{args.workers} ({len(process_queue)} queued)")
+            if context_outputs is False:
+                logger.info(f"{context_name}.run() returned False. Awaiting processes: {process_occupancy}/{args.workers} ({len(process_queue)} queued)")
                 continue
                 
-            if len(proc_outputs) == 0:
+            if len(context_outputs) == 0:
                 logger.info("No captured data found for post-processing.")
                 continue
 
-            redis_cache = redis_interface.get_all()
-            postproc_str = redis_cache.get("#STAGES", None)
+            redis_kvcache = redis_interface.get_all()
+            postproc_str = redis_kvcache.get("#STAGES", None)
+            for key in REDIS_KEYS + [f"STATUS:{process_index}" for process_index in range(args.workers)]:
+                if key in redis_kvcache:
+                    redis_kvcache.pop(key)
+
             if postproc_str is None:
                 logger.warn("#STAGES key is not found. Not post-processing.")
                 continue
@@ -221,10 +262,11 @@ def main():
                 continue
 
             process_queue.append(
-                (
-                    redis_cache,
-                    {initial_stage_name: proc_outputs},
-                    initial_stage.dehydrate(),
+                ProcessParameters(
+                    redis_kvcache,
+                    {context_name: context_outputs},
+                    postproc_str.split(" "),
+                    context.dehydrate(),
                     args.redis_hostname,
                     args.redis_port,
                 )

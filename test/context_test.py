@@ -1,9 +1,12 @@
 import time, logging
 from datetime import datetime
 
-NAME = "proc_test"
+from Pypeline import ProcessNote
+
+NAME = "test"
 
 STATE_data = None
+STATE_env = None
 STATE_context = None
 
 
@@ -33,7 +36,7 @@ def rehydrate(dehydration_tuple):
     STATE_context = dehydration_tuple[1]
 
 
-def run(logger = None):
+def run(env = None, logger = None):
     if logger is None:
         logger = logging.getLogger(NAME)
 
@@ -42,7 +45,7 @@ def run(logger = None):
         return False
 
     for i in range(3, 0, -1):
-        logger.info("Test process-stage run:", i)
+        logger.info(f"Test process-stage run: count down {i} (ENV={env})")
         time.sleep(1)
 
     STATE_context["runs_left"] -= 1
@@ -57,6 +60,13 @@ def setupstage(stage, logger = None):
     global STATE_context
     if hasattr(stage, "CONTEXT"):
         stage.CONTEXT = STATE_context
+
+
+def note(processnote: ProcessNote, **kwargs):
+    if kwargs["logger"] is None:
+        kwargs["logger"] = logging.getLogger(NAME)
+    
+    kwargs["logger"].info(f"{ProcessNote.string(processnote)}: kwargs={kwargs}")
 
 
 if __name__ == "__main__":

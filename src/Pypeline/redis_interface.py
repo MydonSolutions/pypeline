@@ -2,7 +2,7 @@ import time
 from string import Template
 
 class RedisInterface(object):
-    POSTPROCHASH = Template("postprocpype://${host}/${inst}/status")
+    POSTPROCHASH = Template("pypeline://${host}/${inst}/status")
 
     def __init__(self, hostname, instance_id, redis_obj, sub_instance_id=None):
         self.hostname = hostname
@@ -13,7 +13,7 @@ class RedisInterface(object):
         self.redis_pubsub = self.redis_obj.pubsub(
             ignore_subscribe_messages = True
         )
-        self.redis_pubsub.subscribe("postprocpype:///set")
+        self.redis_pubsub.subscribe("pypeline:///set")
 
         self.postproc_hash = self.POSTPROCHASH.substitute(
             host=hostname, inst=instance_id
@@ -21,7 +21,7 @@ class RedisInterface(object):
 
     def __del__(self):
         try:
-            self.redis_pubsub.unsubscribe("postprocpype:///set")
+            self.redis_pubsub.unsubscribe("pypeline:///set")
         except:
             pass
 

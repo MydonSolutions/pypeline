@@ -4,14 +4,49 @@ import logging
 import os, sys
 import redis
 import traceback
+from dataclasses import dataclass
 
 from .redis_interface import RedisInterface
 from .identifier import Identifier
 from .log_formatter import LogFormatter
 
-def import_stage(
+REDIS_KEYS = ["#CONTEXT", "#CONTEXTENV", "#STAGES", "STATUS", "PULSE", "PROCESSES"]
+
+@dataclass
+class ProcessParameters:
+    redis_kvcache: dict # {key::string: value::string}
+    stage_outputs: dict # {stage_name::string: output::list}
+    stage_list: list
+    dehydrated_context: tuple # context.dehydrate()
+    redis_hostname: str
+    redis_port: int
+
+class ProcessNote:
+    Start = 0
+    StageStart = 1
+    StageFinish = 2
+    StageError = 3
+    Finish = 4
+    Error = 5
+
+    @staticmethod
+    def string(note):
+        if note == ProcessNote.Start:
+            return "Start"
+        if note == ProcessNote.StageStart:
+            return "Stage Start"
+        if note == ProcessNote.StageFinish:
+            return "Stage Finish"
+        if note == ProcessNote.StageError:
+            return "Stage Error"
+        if note == ProcessNote.Finish:
+            return "Finish"
+        raise ValueError(f"{note} is not a recognised ProcessNote value.")
+
+
+def import_module(
     stagename,
-    stagePrefix="postproc",
+    modulePrefix="stage",
     definition_dict=globals(),
     logger=None
 ):
@@ -19,25 +54,20 @@ def import_stage(
     log_error_func = print if logger is None else logger.error
     if stagename not in definition_dict:  # stagename not in sys.modules:
         try:
-            definition_dict[stagename] = importlib.import_module(f"{stagePrefix}_{stagename}")
-        except ModuleNotFoundError:
+            definition_dict[stagename] = importlib.import_module(f"{modulePrefix}_{stagename}")
+        except ModuleNotFoundError as error:
             log_error_func(
-                "Could not find the {}.py stage:\n\t{}".format(
-                    f"{stagePrefix}_{stagename}",
+                f"Could not find {modulePrefix}_{stagename}.py:\n\t" +
                     "\n\t".join(sys.path)
-                )
             )
-            return False
-        except:
+            raise error
+        except BaseException as error:
             log_error_func(
-                "Could not import the {}.py stage:\n\t{}".format(
-                    f"{stagePrefix}_{stagename}",
-                    traceback.format_exc()
-                )
+                f"Could not import {modulePrefix}_{stagename}.py:\n\t{traceback.format_exc()}"
             )
-            return False
+            raise error
 
-        log_info_func("Imported the {} stage!".format(stagename))
+        log_info_func(f"Imported {modulePrefix}_{stagename}.")
 
         return True
 
@@ -45,22 +75,17 @@ def import_stage(
         definition_dict[stagename] = importlib.reload(definition_dict[stagename])
     except ModuleNotFoundError:
         log_error_func(
-            "Could not find the {}.py stage to reload, keeping existing version:\n\t{}".format(
-                f"{stagePrefix}_{stagename}",
+            f"Could not find the {modulePrefix}_{stagename}.py module to reload, keeping existing version:\n\t" +
                 "\n\t".join(sys.path)
-            )
         )
-        return True
+        return False
     except:
         log_error_func(
-            "Could not reload the {}.py stage, keeping existing version:\n\t{}".format(
-                f"{stagePrefix}_{stagename}",
-                traceback.format_exc()
-            )
+            f"Could not reload the {modulePrefix}_{stagename}.py module, keeping existing version:\n\t{traceback.format_exc()}"
         )
-        return True
+        return False
 
-    log_info_func("Reloaded the {} stage!".format(stagename))
+    log_info_func(f"Reloaded {modulePrefix}_{stagename}.")
     return True
 
 
@@ -168,7 +193,7 @@ def get_proc_dict_progress_str(proc,
     )
 
 
-def get_redis_keys_in_use(
+def get_stage_keys(
     stage_list_in_use,
     definition_dict = None
 ):
@@ -176,14 +201,13 @@ def get_redis_keys_in_use(
         definition_dict = {}
 
     # clear unused redis-hash keys
-    rediskeys_in_use = ["#PRIMARY", "#STAGES", "STATUS", "PULSE", "PROCESSES"]
+    rediskeys_in_use = []
     for stage_name in stage_list_in_use:
 
         if stage_name == "skip":
             break
         if stage_name not in definition_dict:
-            if not import_stage(stage_name, definition_dict=definition_dict):
-                raise RuntimeError(f"Could not import {stage_name}")
+            import_module(stage_name, definition_dict=definition_dict)
         stage = definition_dict[stage_name]
 
         for proc_key in [
@@ -202,37 +226,39 @@ def get_redis_keys_in_use(
 
 def process(
     identifier: Identifier,
-    keyvalues: dict,
-    stage_output_dict: dict,
-    initial_stage_dehydrated: tuple,
-    redis_hostname: str,
-    redis_port: int,
+    parameters: ProcessParameters
 ):
     '''
     Params:
         identifier: Identifier,
             The identifier of the process operation (pypeline)
-        keyvalues: dict
-            Holds '#STAGES' and all the keys appropriate to each stage listed in '#STAGES'
-        stage_output_dict: dict
-            A dictionary holding only the output of the initial-stage
+        parameters: ProcessParameters
+            The dataclass containing all the arguments required for a process
     
         Logs with `logging.getLogger(str(identifier))`
     '''
     logger = logging.getLogger(str(identifier))
     logger.info(f"{identifier} started.")
 
-    initialstage_name = list(stage_output_dict.keys())[0]
+    context_name = list(parameters.stage_outputs.keys())[0]
     stage_dict = {}
-    import_stage(initialstage_name, stagePrefix="proc", definition_dict=stage_dict, logger=logger)
-    stage_dict[initialstage_name].rehydrate(initial_stage_dehydrated)
+    import_module(context_name, modulePrefix="context", definition_dict=stage_dict, logger=logger)
+    context = stage_dict[context_name]
+    context.rehydrate(parameters.dehydrated_context)
+
+    if hasattr(context, "note"):
+        context.note(
+            ProcessNote.Start,
+            redis_kvcache = parameters.redis_kvcache,
+            logger = logger,
+        )
 
     redis_interface = RedisInterface(
         identifier.hostname,
         identifier.enumeration,
         redis.Redis(
-            host=redis_hostname,
-            port=redis_port,
+            host=parameters.redis_hostname,
+            port=parameters.redis_port,
             decode_responses=True
         ),
         sub_instance_id = identifier.process_enumeration
@@ -259,13 +285,15 @@ def process(
 
     stage_index = 0
 
-    stage_names = keyvalues["#STAGES"].split(' ')
-    for stage_name in stage_names:
-        assert import_stage(
-            stage_name,
-            definition_dict=stage_dict,
-            logger=logger
-        )
+    for stage_name in parameters.stage_list:
+        try:
+            import_module(
+                stage_name,
+                definition_dict=stage_dict,
+                logger=logger
+            )
+        except BaseException as error:
+            raise RuntimeError(f"Could not load stage: {stage_name}") from error
 
         envkey = stage_dict[stage_name].ENV_KEY
         inpkey = stage_dict[stage_name].INP_KEY
@@ -274,28 +302,28 @@ def process(
         # Load INP, ARG and ENV key's value for the process if applicable
         ## INP
         if inpkey is not None:
-            pypeline_input_templates[stage_name] = keyvalues[inpkey].split(',')
+            pypeline_input_templates[stage_name] = parameters.redis_kvcache[inpkey].split(',')
         else:
             pypeline_input_templates[stage_name] = [None]
         pypeline_input_templateindices[stage_name] = 0
         
         ## ARG
         if argkey is not None:
-            pypeline_args[stage_name] = keyvalues[argkey].split(',')
+            pypeline_args[stage_name] = parameters.redis_kvcache[argkey].split(',')
         else:
             pypeline_args[stage_name] = [None]
         pypeline_argindices[stage_name] = 0
 
         ## ENV
         if envkey is not None:
-            pypeline_envvar[stage_name] = keyvalues[envkey]
+            pypeline_envvar[stage_name] = parameters.redis_kvcache[envkey]
         else:
             pypeline_envvar[stage_name] = None
         
         pypeline_inputindices[stage_name] = 0
     
     while True:
-        stage_name = stage_names[stage_index]
+        stage_name = parameters.stage_list[stage_index]
 
         # wait on any previous POPENED
         if stage_name[-1] == "&" and stage_name in pypeline_stage_popened:
@@ -315,7 +343,7 @@ def process(
                 % (stage_name, len(pypeline_stage_popened[stage_name]))
             )
 
-        stage_dict[initialstage_name].setupstage(stage_dict[stage_name])
+        context.setupstage(stage_dict[stage_name])
 
         if pypeline_inputindices[stage_name] == 0:
             # Parse the input_template and create the input list from permutations
@@ -323,10 +351,10 @@ def process(
                 pypeline_input_templateindices[stage_name]
             ]
             pypeline_inputs[stage_name] = parse_input_template(
-                proc_input_template, stage_output_dict, pypeline_lastinput,
+                proc_input_template, parameters.stage_outputs, pypeline_lastinput,
                 logger = logger
             )
-            logger.debug(f"{stage_name} inputs:{ pypeline_inputs[stage_name]}")
+            logger.debug(f"{stage_name} inputs: {pypeline_inputs[stage_name]}")
             assert pypeline_inputs[stage_name]
 
         redis_interface.set_status(f"{time.time()}-{stage_name}")
@@ -338,33 +366,43 @@ def process(
         arg = pypeline_args[stage_name][pypeline_argindices[stage_name]]
         if arg is not None:
             arg = replace_keywords(keywords, arg)
+        logger.debug(f"{stage_name} arg: {arg}")
 
         env = pypeline_envvar[stage_name]
         if env is not None:
             env = replace_keywords(keywords, env)
 
-        # Run the process
-        logger.info(
-            "----------------- {:^12s} -----------------".format(
-                stage_name
+        # Run the process        
+        if hasattr(context, "note"):
+            context.note(
+                ProcessNote.StageStart,
+                redis_kvcache = parameters.redis_kvcache,
+                logger = logger,
+                stage = stage_dict[stage_name],
+                argvalue = arg,
+                inpvalue = inp,
+                envvalue = env,
             )
-        )
-        checkpoint_time = time.time()
 
         stage_logger = logging.getLogger(f"{identifier}.{stage_name}")
+
+        checkpoint_time = time.time()
         try:
-            stage_output_dict[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
+            parameters.stage_outputs[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
         except BaseException as err:
+            if hasattr(context, "note"):
+                context.note(
+                    ProcessNote.StageError,
+                    redis_kvcache = parameters.redis_kvcache,
+                    logger = logger,
+                    stage = stage_dict[stage_name],
+                    error = err
+                )
+
             message = f"{repr(err)} ({stage_name})"
             logger.error(message)
             redis_interface.set_status(f"{time.time()}-Error: {message}")
             raise RuntimeError(message) from err
-
-        logger.info(
-            "^^^^^^^^^^^^^^^^^ {:^12s} ^^^^^^^^^^^^^^^^^".format(
-                stage_name
-            )
-        )
 
         keywords["times"].append(time.time() - checkpoint_time)
         keywords["stages"].append(stage_name)
@@ -374,6 +412,15 @@ def process(
             logger.info(
                 "Captured %s's %d detached processes."
                 % (stage_name, len(stage_dict[stage_name].POPENED))
+            )
+
+        if hasattr(context, "note"):
+            context.note(
+                ProcessNote.StageFinish,
+                redis_kvcache = parameters.redis_kvcache,
+                logger = logger,
+                stage = stage_dict[stage_name],
+                output = parameters.stage_outputs[stage_name]
             )
 
         # Increment through inputs, overflow increment through arguments
@@ -388,11 +435,11 @@ def process(
                 pypeline_argindices[stage_name] += 1
 
         # Proceed to next process or...
-        if stage_index + 1 < len(stage_names):
+        if stage_index + 1 < len(parameters.stage_list):
             logger.info("Next process")
 
             stage_index += 1
-            stage_name = stage_names[stage_index]
+            stage_name = parameters.stage_list[stage_index]
             if stage_name[0] == "*":
                 stage_name = stage_name[1:]
             pypeline_input_templateindices[stage_name] = 0
@@ -415,7 +462,7 @@ def process(
                 logger.info(progress_str)
 
                 stage_index -= 1
-                stage_name = stage_names[stage_index]
+                stage_name = parameters.stage_list[stage_index]
                 if stage_name[0] == "*":
                     stage_name = stage_name[1:]
 
@@ -435,4 +482,11 @@ def process(
             )
             logger.info(progress_str)
 
-            logger.info(f"Rewound to {stage_names[stage_index]}")
+            logger.info(f"Rewound to {parameters.stage_list[stage_index]}")
+
+    if hasattr(context, "note"):
+        context.note(
+            ProcessNote.Finish,
+            redis_kvcache = parameters.redis_kvcache,
+            logger = logger,
+        )
