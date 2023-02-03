@@ -251,6 +251,7 @@ def process(
             ProcessNote.Start,
             process_id = identifier,
             redis_kvcache = parameters.redis_kvcache,
+            context_outputs = parameters.stage_outputs[context_name],
             logger = logger,
         )
 
