@@ -155,8 +155,9 @@ def main():
                         if hasattr(process_context, "note"):
                             process_context.note(
                                 ProcessNote.Error,
+                                process_id = process_id,
+                                logger = logger,
                                 error = err,
-                                logger = logger
                             )
 
                     process_asyncobj_jobs[process_id] = None
