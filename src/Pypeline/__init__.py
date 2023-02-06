@@ -166,14 +166,14 @@ def parse_input_template(
     return ret
 
 
-def replace_keywords(keyword_dict, string):
+def replace_keywords(keyword_dict, string, keyword_opener='$', keyword_closer='$'):
     for keyword, keyvalue in keyword_dict.items():
         keyword_value = (
             " ".join(map(str, keyvalue))
             if isinstance(keyvalue, list)
             else str(keyvalue)
         )
-        string = string.replace(f"${keyword}$", keyword_value)
+        string = string.replace(f"{keyword_opener}{keyword}{keyword_closer}", keyword_value)
     return string
 
 
