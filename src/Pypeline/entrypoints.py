@@ -42,6 +42,13 @@ def main():
         help="The number of parallel processes to pool.",
     )
     parser.add_argument(
+        "--queue-limit",
+        "-q",
+        type=int,
+        default=10,
+        help="The limit of the process queue.",
+    )
+    parser.add_argument(
         "--log-directory",
         type=str,
         default=None,
@@ -260,6 +267,15 @@ def main():
                 continue
             if "skip" in postproc_str[0:4]:
                 logger.info("#STAGES key begins with skip, not post-processing.")
+                continue
+
+            if len(process_queue) == args.queue_limit:
+                process_context.note(
+                    ProcessNote.Error,
+                    process_id = None,
+                    logger = logger,
+                    error = RuntimeError(f"Queue limit of {args.queue_limit} reached."),
+                )
                 continue
 
             process_queue.append(
