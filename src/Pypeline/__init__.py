@@ -41,6 +41,8 @@ class ProcessNote:
             return "Stage Error"
         if note == ProcessNote.Finish:
             return "Finish"
+        if note == ProcessNote.Error:
+            return "Error"
         raise ValueError(f"{note} is not a recognised ProcessNote value.")
 
 
@@ -251,7 +253,6 @@ def process(
             ProcessNote.Start,
             process_id = identifier,
             redis_kvcache = parameters.redis_kvcache,
-            context_outputs = parameters.stage_outputs[context_name],
             logger = logger,
         )
 
