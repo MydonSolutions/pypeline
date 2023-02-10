@@ -270,7 +270,7 @@ def main():
                 continue
 
             if len(process_queue) == args.queue_limit:
-                process_context.note(
+                context.note(
                     ProcessNote.Error,
                     process_id = None,
                     logger = logger,
