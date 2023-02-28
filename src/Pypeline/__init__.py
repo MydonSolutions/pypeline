@@ -363,7 +363,6 @@ def process(
         redis_interface.set_status(f"{time.time()}-{stage_name}")
 
         inp = pypeline_inputs[stage_name][pypeline_inputindices[stage_name]]
-        assert inp
         pypeline_lastinput[stage_name] = inp
 
         arg = pypeline_args[stage_name][pypeline_argindices[stage_name]]
