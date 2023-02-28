@@ -184,7 +184,8 @@ def main():
                     process_busy_parameters[process_id] = process_parameters
                     process_state_last_timestamps[str(process_id)]["Start"] = time.time()
                     process_occupancy += 1
-                
+
+            redis_interface.get_broadcast_messages(0.1)
             stage_list = redis_interface.get("#STAGES")
             redis_interface.set("PULSE", "%s" % (datetime.now().strftime("%Y/%m/%d %H:%M:%S")))
             redis_interface.set("STATUS", f"{process_occupancy}/{args.workers} ({len(process_queue)} queued)")
@@ -197,8 +198,6 @@ def main():
                 logger.info(f"{context_name}.run() returned False. Exiting")
                 exit(0)
 
-            redis_interface.get_broadcast_messages(0.1)
-            
             process_changed = (
                 stage_list is not None
                 and stage_list != previous_stage_list
