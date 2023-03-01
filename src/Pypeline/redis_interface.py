@@ -42,10 +42,13 @@ class RedisInterface(object):
     
     def get_broadcast_messages(self, timeout_s):
         message = self.redis_pubsub.get_message(timeout=timeout_s)
-        if message is None or not isinstance(message.get("data"), bytes):
+        if message is None:
             return False
+
+        if isinstance(message.get("data"), bytes):
+            message["data"]  = message["data"].decode()
         # TODO rather implement redis_obj.hset(, mapping={})
-        for keyvaluestr in message.get("data").decode().split("\n"):
+        for keyvaluestr in message["data"].split("\n"):
             parts = keyvaluestr.split("=")
             self.set(parts[0], '='.join(parts[1:]))
         return True
