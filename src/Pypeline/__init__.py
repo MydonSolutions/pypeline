@@ -305,14 +305,14 @@ def process(
         # Load INP, ARG and ENV key's value for the process if applicable
         ## INP
         if inpkey is not None:
-            pypeline_input_templates[stage_name] = parameters.redis_kvcache[inpkey].split(',')
+            pypeline_input_templates[stage_name] = parameters.redis_kvcache[inpkey].split(';')
         else:
             pypeline_input_templates[stage_name] = [None]
         pypeline_input_templateindices[stage_name] = 0
         
         ## ARG
         if argkey is not None:
-            pypeline_args[stage_name] = parameters.redis_kvcache[argkey].split(',')
+            pypeline_args[stage_name] = parameters.redis_kvcache[argkey].split(';')
         else:
             pypeline_args[stage_name] = [None]
         pypeline_argindices[stage_name] = 0
