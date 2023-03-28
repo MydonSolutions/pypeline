@@ -73,6 +73,13 @@ def main():
         default=6379,
         help="The port of the Redis server.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbosity",
+        action="count",
+        default=0,
+        help="Increase the verbosity of the logs (0=Error, 1=Warn, 2=Info, 3=Debug)."
+    )
     args = parser.parse_args()
 
     mp.set_start_method("fork")
@@ -128,14 +135,19 @@ def main():
     process_queue = []
 
     logger = logging.getLogger(f"{instance_hostname}:{instance_id}")
-    ch = logging.StreamHandler()
-    ch.setFormatter(LogFormatter())
-    logger.addHandler(ch)
     if args.log_directory is not None:
         fh = logging.FileHandler(os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"))
         fh.setFormatter(LogFormatter())
         logger.addHandler(fh)
-    logger.setLevel(logging.DEBUG)
+    else:
+        ch = logging.StreamHandler()
+        ch.setFormatter(LogFormatter())
+        logger.addHandler(ch)
+    logger.setLevel(
+        [
+            logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG
+        ][args.verbosity]
+    )
 
     context_outputs = None
     with mp.Pool(processes=args.workers) as pool:
