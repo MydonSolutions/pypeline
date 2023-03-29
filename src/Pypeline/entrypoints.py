@@ -4,8 +4,10 @@ import time
 import socket
 import json
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import traceback
 from datetime import datetime
+from datetime import time as datetime_time
 import multiprocessing as mp
 
 import redis
@@ -53,6 +55,12 @@ def main():
         type=str,
         default=None,
         help="The directory in which to log.",
+    )
+    parser.add_argument(
+        "--log-backup-days",
+        type=int,
+        default=7,
+        help="The number of day-logs to keep in arrears.",
     )
     parser.add_argument(
         "-kv",
@@ -136,7 +144,14 @@ def main():
 
     logger = logging.getLogger(f"{instance_hostname}:{instance_id}")
     if args.log_directory is not None:
-        fh = logging.FileHandler(os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"))
+        fh = TimedRotatingFileHandler(
+            os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"),
+            when='h',
+            interval=24,
+            backupCount=args.log_backup_days,
+            utc=True,
+            atTime=datetime_time(hour=0)
+        )
         fh.setFormatter(LogFormatter())
         logger.addHandler(fh)
     else:
