@@ -5,7 +5,7 @@ import socket
 import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
-import traceback
+import sys, traceback, atexit
 from datetime import datetime
 from datetime import time as datetime_time
 import multiprocessing as mp
@@ -163,6 +163,11 @@ def main():
             logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG
         ][args.verbosity]
     )
+    logger.warning("Start up.")
+
+    sys.excepthook = lambda *args: logger.error("".join(traceback.format_exception(*args)))
+    # this happens after exception_hook even in the event of an exception
+    atexit.register(lambda: logger.warning("Exiting."))
 
     context_outputs = None
     with mp.Pool(processes=args.workers) as pool:
