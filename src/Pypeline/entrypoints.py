@@ -148,9 +148,7 @@ def main():
             os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"),
             when='h',
             interval=24,
-            backupCount=args.log_backup_days,
-            utc=True,
-            atTime=datetime_time(hour=0)
+            backupCount=args.log_backup_days
         )
         fh.setFormatter(LogFormatter())
         logger.addHandler(fh)
