@@ -197,7 +197,8 @@ def get_proc_dict_progress_str(proc,
 
 def get_stage_keys(
     stage_list_in_use,
-    definition_dict = None
+    definition_dict = None,
+    logger=None
 ):
     if definition_dict is None:
         definition_dict = {}
@@ -209,7 +210,7 @@ def get_stage_keys(
         if stage_name == "skip":
             break
         if stage_name not in definition_dict:
-            import_module(stage_name, definition_dict=definition_dict)
+            import_module(stage_name, definition_dict=definition_dict, logger=logger)
         stage = definition_dict[stage_name]
 
         for proc_key in [
@@ -346,7 +347,7 @@ def process(
                 % (stage_name, len(pypeline_stage_popened[stage_name]))
             )
 
-        context.setupstage(stage_dict[stage_name])
+        context.setupstage(stage_dict[stage_name], logger=logger)
 
         if pypeline_inputindices[stage_name] == 0:
             # Parse the input_template and create the input list from permutations

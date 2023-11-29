@@ -143,24 +143,34 @@ def main():
     process_queue = []
 
     logger = logging.getLogger(f"{instance_hostname}:{instance_id}")
+    logger_level = [
+        logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG
+    ][args.verbosity]
+    
     if args.log_directory is not None:
-        fh = TimedRotatingFileHandler(
-            os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.log"),
-            when='h',
-            interval=24,
-            backupCount=args.log_backup_days
-        )
-        fh.setFormatter(LogFormatter())
-        logger.addHandler(fh)
+        for ext_level_tuple in [
+            ("log", logging.INFO),
+            ("err", logging.WARNING)
+        ]:
+            log_ext, log_level = ext_level_tuple
+            if log_level < logger_level:
+                continue
+
+            fh = TimedRotatingFileHandler(
+                os.path.join(args.log_directory, f"pypeline_{instance_hostname}_{instance_id}.{log_ext}"),
+                when='midnight',
+                utc=True,
+                backupCount=args.log_backup_days
+            )
+            fh.setFormatter(LogFormatter())
+            fh.setLevel(log_level)
+            logger.addHandler(fh)
     else:
         ch = logging.StreamHandler()
         ch.setFormatter(LogFormatter())
         logger.addHandler(ch)
-    logger.setLevel(
-        [
-            logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG
-        ][args.verbosity]
-    )
+
+    logger.setLevel(logger_level)
     logger.warning("Start up.")
 
     sys.excepthook = lambda *args: logger.error("".join(traceback.format_exception(*args)))
@@ -251,7 +261,7 @@ def main():
             new_context_name = redis_interface.get("#CONTEXT")
             if new_context_name != context_name:
                 try:
-                    import_module(new_context_name, modulePrefix="context", definition_dict=context_dict)
+                    import_module(new_context_name, modulePrefix="context", definition_dict=context_dict, logger=logger)
 
                     context_name = new_context_name
                     context = context_dict.pop(context_name)
