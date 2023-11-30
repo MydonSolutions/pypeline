@@ -111,7 +111,7 @@ multiple argument-sets are separated by commas (`,`).
 
 ## The Test Example
 
-`PYTHONPATH=$PWD/test/:$PYTHONPATH pypeline 3 test --log-directory /home/cosmic/dev/logs --redis-hostname redishost --redis-port 6379 -kv "#STAGES=teststage" "TESTINP=test" "TESTARG=just an arg string" "#CONTEXTENV=ENVKEY=ENVVALUE1:ENVVALUE2`
+`docker compose up`
 
 # Development of a Bespoke Pipeline
 

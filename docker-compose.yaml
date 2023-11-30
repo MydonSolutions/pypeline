@@ -1,0 +1,15 @@
+services:
+  redishost:
+    container_name: pypeline_redis
+    image: redis:alpine
+    ports:
+      - 6379:6379
+  pypeline:
+    container_name: pypeline
+    build:
+      context: .
+    depends_on:
+      - redishost
+    environment:
+      - PYTHONPATH=/work/test/
+    command: pypeline 0 test -vvv --redis-hostname redishost --redis-port 6379 -kv "#STAGES=teststage" "TESTINP=test" "TESTARG=just an arg string" "#CONTEXTENV=ENVKEY=ENVVALUE1:ENVVALUE2"

@@ -1,26 +1,30 @@
-import logging
-
-class LogFormatter(logging.Formatter):
-
-    debug_fmt = "[%(asctime)s - %(name)s:%(levelname)s - %(filename)s:L%(lineno)s] %(message)s"
-    common_fmt = "[%(asctime)s - %(name)s:%(levelname)s] %(message)s"
-
-    def __init__(self):
-        logging.Formatter.__init__(self, LogFormatter.common_fmt)
+from bisect import bisect
+from logging import LogRecord, Formatter, DEBUG, ERROR, INFO
+from typing import Dict
 
 
-    def format(self, record):
-        '''
-        Temporarily swap out the format for DEBUG and ERROR logs.
-        '''
+class LogFormatter(Formatter):
+    def __init__(self, formats: Dict[int, str] = None, **kwargs):
+        super().__init__()
 
-        format_orig = self._fmt
-        if record.levelno == logging.DEBUG:
-            self._fmt = LogFormatter.debug_fmt
-        elif record.levelno == logging.ERROR:
-            self._fmt = LogFormatter.debug_fmt
+        if 'fmt' in kwargs:
+            raise ValueError(
+                'Format string must be passed to level-surrogate formatters, '
+                'not this one'
+            )
 
-        result = logging.Formatter.format(self, record)
-        self._fmt = format_orig
+        if formats is None:
+            formats = {
+                DEBUG: "[%(asctime)s - %(name)s:%(levelname)s - %(filename)s:L%(lineno)s] %(message)s",
+                INFO: "[%(asctime)s - %(name)s:%(levelname)s] %(message)s",
+                ERROR: "[%(asctime)s - %(name)s:%(levelname)s - %(filename)s:L%(lineno)s] %(message)s",
+            }
 
-        return result
+        self.formats = sorted(
+            (level, Formatter(fmt, **kwargs)) for level, fmt in formats.items()
+        )
+
+    def format(self, record: LogRecord) -> str:
+        idx = bisect(self.formats, (record.levelno,), hi=len(self.formats)-1)
+        level, formatter = self.formats[idx]
+        return formatter.format(record)

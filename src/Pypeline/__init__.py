@@ -1,16 +1,12 @@
 import time
 import importlib
 import logging
-import os, sys
-import redis
+import sys
 import traceback
 from dataclasses import dataclass
 
-from .redis_interface import RedisInterface
-from .identifier import Identifier
-from .log_formatter import LogFormatter
-
-REDIS_KEYS = ["#CONTEXT", "#CONTEXTENV", "#STAGES", "STATUS", "PULSE", "PROCESSES"]
+from .redis_interface import RedisProcessInterface, ProcessStatus
+from .identifier import ProcessIdentifier
 
 @dataclass
 class ProcessParameters:
@@ -228,7 +224,7 @@ def get_stage_keys(
 
 
 def process(
-    identifier: Identifier,
+    identifier: ProcessIdentifier,
     parameters: ProcessParameters
 ):
     '''
@@ -257,17 +253,15 @@ def process(
             logger = logger,
         )
 
-    redis_interface = RedisInterface(
-        identifier.hostname,
-        identifier.enumeration,
-        redis.Redis(
-            host=parameters.redis_hostname,
-            port=parameters.redis_port,
-            decode_responses=True
-        ),
-        sub_instance_id = identifier.process_enumeration
+    redis_interface = RedisProcessInterface(
+        identifier,
+        host=parameters.redis_hostname,
+        port=parameters.redis_port,
     )
-    redis_interface.set_status(f"{time.time()}-Start")
+    redis_interface.status = ProcessStatus(
+        timestamp_last_stage=time.time(),
+        last_stage="START"
+    )
 
     keywords = {
         "hnme": identifier.hostname,
@@ -331,7 +325,10 @@ def process(
 
         # wait on any previous POPENED
         if stage_name[-1] == "&" and stage_name in pypeline_stage_popened:
-            redis_interface.set_status(f"{time.time()}-Poll detached {stage_name}")
+            redis_interface.status = ProcessStatus(
+                timestamp_last_stage=time.time(),
+                last_stage=f"Poll detached {stage_name}"
+            )
             for popenIdx, popen in enumerate(pypeline_stage_popened[stage_name]):
                 poll_count = 0
                 while popen.poll() is None:
@@ -361,7 +358,11 @@ def process(
             logger.debug(f"{stage_name} inputs: {pypeline_inputs[stage_name]}")
             assert pypeline_inputs[stage_name]
 
-        redis_interface.set_status(f"{time.time()}-{stage_name}")
+
+        redis_interface.status = ProcessStatus(
+            timestamp_last_stage=time.time(),
+            last_stage=stage_name
+        )
 
         inp = pypeline_inputs[stage_name][pypeline_inputindices[stage_name]]
         pypeline_lastinput[stage_name] = inp
@@ -406,7 +407,10 @@ def process(
 
             message = f"{repr(err)} ({stage_name})"
             logger.error(message)
-            redis_interface.set_status(f"{time.time()}-Error: {message}")
+            redis_interface.status = ProcessStatus(
+                timestamp_last_stage=time.time(),
+                last_stage=f"ERROR: {message}"
+            )
             raise RuntimeError(message) from err
 
         keywords["times"].append(time.time() - checkpoint_time)
@@ -475,7 +479,10 @@ def process(
             # Break if there are no novel process argument-input permutations
             if stage_index < 0:
                 logger.info("Post Processing Done!")
-                redis_interface.set_status(f"{time.time()}-Done")
+                redis_interface.status = ProcessStatus(
+                    timestamp_last_stage=time.time(),
+                    last_stage="DONE"
+                )
                 break
             progress_str = get_proc_dict_progress_str(
                 stage_name,
