@@ -1,57 +1,10 @@
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 import json
-import re
 
 import redis
 
-from pydantic import BaseModel
-
-from .identifier import ServiceIdentifier, ProcessIdentifier
-
-class ServiceStatus(BaseModel):
-    workers_busy_count: int
-    workers_total_count: int
-    job_queue: List
-
-    def __str__(self) -> str:
-        return f"{self.workers_busy_count}/{self.workers_total_count} ({len(self.job_queue)} queued)"
-
-    @staticmethod
-    def from_str(s) -> "ServiceStatus":
-        m = re.match(r"(?P<workers_busy_count>\d+)/(?P<workers_total_count>\d+) \((?P<jobs_queued_count>\d+) queued\)", s)
-        if m is None:
-            raise ValueError(f"Incompatible string: '{s}'")
-        return ServiceStatus(
-            workers_busy_count=int(m.group("workers_busy_count")),
-            workers_total_count=int(m.group("workers_total_count")),
-            jobs_queued_count=int(m.group("jobs_queued_count")),
-        )
-
-class ProcessStatus(BaseModel):
-    timestamp_last_stage: float
-    last_stage: str
-
-    def __str__(self) -> str:
-        return f"{self.timestamp_last_stage}-{self.last_stage}"
-
-    @staticmethod
-    def from_str(s) -> "ProcessStatus":
-        m = re.match(r"(?P<timestamp>\d+(\.\d+))-(?P<stage>\w+)", s)
-        if m is None:
-            raise ValueError(f"Incompatible string: '{s}'")
-        return ProcessStatus(
-            timestamp_last_stage=m.group("timestamp"),
-            last_stage=m.group("stage")
-        )
-
-class ProcessStateTimestamps(BaseModel):
-    start: Optional[float]
-    finish: Optional[float]
-    error: Optional[float]
-    
-    def __str__(self):
-        return self.model_dump_json()
+from .dataclasses import ServiceIdentifier, ProcessIdentifier, ServiceStatus, ProcessState, ProcessStatus, JobEventMessage, ProcessNoteMessage
 
 
 class _RedisStatusInterface:
@@ -59,7 +12,8 @@ class _RedisStatusInterface:
         redis_kwargs["decode_responses"] = redis_kwargs.get("decode_responses", True)
         ignore_subscribe_messages = redis_kwargs.pop("ignore_subscribe_messages", True)
         self.redis_obj = redis.Redis(**redis_kwargs)
-        self.rh_status = f"pypeline://{redis_address}/status"
+        self.redis_address = redis_address
+        self.rh_status = f"pypeline://{self.redis_address}/status"
         self.rc_subscriptions = {}
         for chan in channel_subscriptions:
             pubsub = self.redis_obj.pubsub(ignore_subscribe_messages=ignore_subscribe_messages)
@@ -67,15 +21,18 @@ class _RedisStatusInterface:
             self.rc_subscriptions[chan] = pubsub
 
     def __del__(self):
+        if not hasattr(self, "rc_subscriptions"):
+            # not initialised properly
+            return
         for chan, pubsub in self.rc_subscriptions.items():
             pubsub.unsubscribe()
 
     def __setitem__(self, key, value):
-        self.redis_obj.hset(self.rh_status, key, value)
+        return self.redis_obj.hset(self.rh_status, key, value)
 
     def set(self, key, value, assertion_tuple=(True, "")):
         assert assertion_tuple[0], assertion_tuple[1]
-        self.__setitem__(key, value)
+        return self.__setitem__(key, value)
 
     def __getitem__(self, key):
         v = self.redis_obj.hget(self.rh_status, key)
@@ -97,6 +54,11 @@ class _RedisStatusInterface:
         keys_to_clear = [key for key in all_keys if key not in exclusion_list]
         if len(keys_to_clear) > 0:
             self.redis_obj.hdel(self.rh_status, *keys_to_clear)
+    
+    def publish(self, channel, message, assertion_tuple=(True, "")):
+        assert assertion_tuple[0], assertion_tuple[1]
+        return self.redis_obj.publish(f"pypeline://{self.redis_address}/{channel}", message)
+
 
 
 class RedisServiceInterface(_RedisStatusInterface):
@@ -122,6 +84,19 @@ class RedisServiceInterface(_RedisStatusInterface):
             self.set(parts[0], '='.join(parts[1:]))
         return True
 
+    job_event_message: JobEventMessage = property(
+        fget=None,
+        fset=lambda self, value: self.publish(
+            "jobs",
+            str(value),
+            assertion_tuple=(
+                isinstance(value, JobEventMessage),
+                "Must be instance of `JobEventMessage`"
+            )
+        ),
+        fdel=None,
+        doc="Publishes `JobEventMessage` under the 'jobs' channel."
+    )
 
     context: str = property(
         fget=lambda self: self.__getitem__("#CONTEXT"),
@@ -162,39 +137,47 @@ class RedisServiceInterface(_RedisStatusInterface):
         doc="Status object."
     )
 
-    processes: List[ProcessStateTimestamps] = property(
+    processes: List[ProcessState] = property(
         fget=lambda self: {
-            ProcessIdentifier.from_str(k): ProcessStateTimestamps(*v)
+            ProcessIdentifier.from_str(k): ProcessState(*v)
             for k, v in json.loads(self.__getitem__("PROCESSES")).items()
         },
         fset=lambda self, value: self.set(
             "PROCESSES",
             json.dumps({
-                str(self.id.process_identifier(i)): v.model_dump()
+                str(self.id.process_identifier(i)): v
                 for i, v in enumerate(value)
             }),
             assertion_tuple=(
                 all(map(
-                    lambda v: isinstance(v, ProcessStateTimestamps),
+                    lambda v: isinstance(v, ProcessState),
                     value
                 )),
-                f"Must be a dict(Identifier, ProcessStateTimestamps)"
+                f"Must be a dict(Identifier, ProcessState)"
             )
         ),
         fdel=None,
         doc="A map of process identifiers to state-timestamps."
     )
 
-class RedisProcessInterface(_RedisStatusInterface):
-    def __init__(self, id: ProcessIdentifier, **redis_kwargs):
-        if not isinstance(id, ProcessIdentifier):
-            raise ValueError("Interface ID must be an instance of ProcessIdentifier")
-        super().__init__(id.redis_address(), **redis_kwargs)
+    process_note_message: ProcessNoteMessage = property(
+        fget=None,
+        fset=lambda self, value: self.publish(
+            "notes",
+            str(value),
+            assertion_tuple=(
+                isinstance(value, ProcessNoteMessage),
+                "Must be instance of `ProcessNoteMessage`"
+            )
+        ),
+        fdel=None,
+        doc="Publishes `ProcessNoteMessage` under the 'notes' channel."
+    )
 
-    status: ProcessStatus = property(
+    process_status: ProcessStatus = property(
         fget=lambda self: ProcessStatus.from_str(self.__getitem__("STATUS")),
         fset=lambda self, value: self.set(
-            "STATUS",
+            f"STATUS:{value.process_id}",
             str(value),
             assertion_tuple=(isinstance(value, ProcessStatus), f"Must be instance of ProcessStatus")
         ),

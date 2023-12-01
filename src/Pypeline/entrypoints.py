@@ -2,28 +2,17 @@ import os
 import argparse
 import time
 import socket
-import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import sys, traceback, atexit
 from datetime import datetime
-from datetime import time as datetime_time
 import multiprocessing as mp
 from typing import List, Optional
 
-from . import import_module, get_stage_keys, process as PypelineProcess, ProcessNote, ProcessParameters
-from .identifier import ServiceIdentifier
-from .redis_interface import RedisServiceInterface, ServiceStatus, ProcessStateTimestamps
+from . import import_module, get_stage_keys, process as PypelineProcess
+from .redis_interface import RedisServiceInterface
+from .dataclasses import ServiceIdentifier, ServiceStatus, ProcessState, JobEvent, JobEventMessage, ProcessNote, JobParameters
 from .log_formatter import LogFormatter
-
-
-def _isolated_context_rehydration(process_parameters: ProcessParameters, logger: logging.Logger):
-    context_name = list(process_parameters.stage_outputs.keys())[0]
-    tmp_stage_dict = {}
-    import_module(context_name, modulePrefix="context", definition_dict=tmp_stage_dict, logger=logger)
-    context = tmp_stage_dict[context_name]
-    context.rehydrate(process_parameters.dehydrated_context)
-    return context
 
 
 def main():
@@ -152,19 +141,14 @@ def main():
     cleanup_stability_factor = 5
     process_changed_count = 0
     process_asyncobj_jobs: List[Optional[mp.pool.ApplyResult]] = [None]*args.workers
-    process_state_last_timestamps = [
-        ProcessStateTimestamps(
-            start=None,
-            finish=None,
-            error=None,
-        )
-    ]*args.workers
+    process_states = [ProcessState.Idle]*args.workers
     process_busy_parameters = [None]*args.workers
     status = ServiceStatus(
         workers_busy_count=0,
         workers_total_count=args.workers,
-        job_queue=[]
+        process_job_queue=[]
     )
+    job_id = 1
 
     sys.excepthook = lambda *args: logger.error("".join(traceback.format_exception(*args)))
     # this happens after exception_hook even in the event of an exception
@@ -176,52 +160,37 @@ def main():
             for process_id, process_async_obj in enumerate(process_asyncobj_jobs):
                 if process_async_obj is not None and process_async_obj.ready():
                     logger.info(f"Process #{process_id} is complete.")
-                    logger.info(f"\tSuccessfully: {process_async_obj.successful()}.")
 
-                    # rehydrate the initial stage to note completion
-                    try:
-                        logger.info(f"\tReturning: {process_async_obj.get()}.")
-                        process_state_last_timestamps[process_id].finish = time.time()
-
-                    except BaseException as err:
-                        logger.error(f"\tTraceback: {traceback.format_exc()}.")
-                        process_state_last_timestamps[process_id].error = time.time()
-
-                        process_context = _isolated_context_rehydration(
-                            process_busy_parameters[process_id],
-                            logger=logger
-                        )
-                        if hasattr(process_context, "note"):
-                            process_context.note(
-                                ProcessNote.Error,
-                                process_id = service_id.process_identifier(process_id),
-                                logger = logger,
-                                error = err,
-                            )
+                    successful = process_async_obj.get()
+                    logger.info(f"\tSuccessfully: {successful}.")
+                    process_states[process_id] = ProcessState.Finished
+                    if not successful:
+                        process_states[process_id] = ProcessState.Errored
 
                     process_asyncobj_jobs[process_id] = None
                     process_busy_parameters[process_id] = None
                     status.workers_busy_count -= 1
 
-                if process_asyncobj_jobs[process_id] is None and len(status.job_queue) > 0:
-                    process_parameters = status.job_queue.pop(0)
-                    logger.info(f"Spawning Process #{process_id}:\n\t#STAGES={process_parameters.redis_kvcache.get('#STAGES', None)}\n\t{process_parameters.dehydrated_context}")
+                if process_asyncobj_jobs[process_id] is None and len(status.process_job_queue) > 0:
+                    job_parameters = status.process_job_queue.pop(0)
+                    logger.info(f"Spawning Process #{process_id}:\n\t#STAGES={job_parameters.redis_kvcache.get('#STAGES', None)}\n\t{job_parameters.dehydrated_context}")
                     process_asyncobj_jobs[process_id] = pool.apply_async(
                         PypelineProcess,
                         (
                             service_id.process_identifier(process_id),
-                            process_parameters
+                            job_parameters,
+                            args.redis_hostname,
+                            args.redis_port
                         )
                     )
-                    process_busy_parameters[process_id] = process_parameters
-                    process_state_last_timestamps[process_id].start = time.time()
+                    process_states[process_id] = ProcessState.Busy
                     status.workers_busy_count += 1
 
             redis_interface.process_broadcast_set_messages(0.1)
             stage_list = redis_interface.stages
             redis_interface.pulse = datetime.now()
             redis_interface.status = status
-            redis_interface.processes = process_state_last_timestamps
+            redis_interface.processes = process_states
 
             if context_outputs is False:
                 if status.workers_busy_count > 0:
@@ -283,39 +252,43 @@ def main():
                 continue
                 
             if len(context_outputs) == 0:
-                logger.info("No captured data found for post-processing.")
+                logger.info("No captured data found for processing.")
                 continue
 
             redis_kvcache = redis_interface.get_all()
-            postproc_str = redis_kvcache.get("#STAGES", None)
-
-            if postproc_str is None:
-                logger.warn("#STAGES key is not found. Not post-processing.")
-                continue
-            if "skip" in postproc_str[0:4]:
-                logger.info("#STAGES key begins with skip, not post-processing.")
-                continue
+            stages_keyvalue = redis_kvcache.get("#STAGES", None)
             
             for key in redis_interface.REDIS_HASH_KEYS:
                 redis_kvcache.pop(key, None)
 
-            if len(status.job_queue) == args.queue_limit:
-                context.note(
+            params = JobParameters(
+                job_id=job_id,
+                redis_kvcache=redis_kvcache,
+                stage_outputs={context_name: context_outputs},
+                stage_list=stages_keyvalue.split(" "),
+                dehydrated_context=context.dehydrate()
+            )
+            job_id += 1
+            action = JobEvent.Queue
+
+            if stages_keyvalue is None or "skip" in stages_keyvalue[0:4]:
+                logger.info("#STAGES key begins with 'skip' or is missing. Not processing.")
+                action=JobEvent.Skip
+
+            elif len(status.process_job_queue) == args.queue_limit:
+                action=JobEvent.Drop
+                context.note( # TODO change to service note
                     ProcessNote.Error,
                     process_id = None,
                     logger = logger,
                     error = RuntimeError(f"Queue limit of {args.queue_limit} reached."),
                 )
+
+            redis_interface.job_action_message = JobEventMessage(
+                action=action,
+                job_parameters=params
+            )
+            if action != JobEvent.Queue:
                 continue
 
-            status.job_queue.append(
-                ProcessParameters(
-                    redis_kvcache,
-                    {context_name: context_outputs},
-                    postproc_str.split(" "),
-                    context.dehydrate(),
-                    args.redis_hostname,
-                    args.redis_port,
-                )
-            )
-
+            status.process_job_queue.append(params)
