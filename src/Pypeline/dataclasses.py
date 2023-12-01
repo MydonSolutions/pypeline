@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import re
 from enum import Enum
 
@@ -61,7 +61,6 @@ class ProcessState(str, Enum):
     Finished = "finished"
     Errored = "errored"
 
-
 class ProcessNote(str, Enum):
     Start = "Start"
     StageStart = "Stage Start"
@@ -91,7 +90,7 @@ class JobParameters(BaseModel):
     redis_kvcache: Dict[str, str]
     stage_outputs: Dict[str, List] # {stage_name::string: output::list}
     stage_list: List[str]
-    dehydrated_context: tuple # context.dehydrate()
+    dehydrated_context: Union[tuple, dict, list] # context.dehydrate()
 
 
 class JobEvent(str, Enum):
