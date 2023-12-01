@@ -4,8 +4,8 @@ import logging
 import sys
 import traceback
 
-from .redis_interface import RedisServiceInterface
-from .dataclasses import ProcessIdentifier, ServiceIdentifier, JobParameters, ProcessNote, ProcessStatus, ProcessNoteMessage, StageTimestamp
+from .redis_interface import RedisServiceInterface, RedisClientInterface
+from .dataclasses import ProcessIdentifier, ServiceIdentifier, JobParameters, ProcessNote, ProcessStatus, ProcessNoteMessage, StageTimestamp, JobEventMessage
 
 
 class StageException(Exception):
@@ -456,7 +456,7 @@ def process_unsafe(
                     error = err
                 )
 
-            stage_err = StageException(err)
+            stage_err = StageException(stage_name, err)
             message = f"{stage_err}"
             redis_interface.process_note_message = ProcessNoteMessage(
                 job_id=job_parameters.job_id,
@@ -510,7 +510,7 @@ def process_unsafe(
 
         # Proceed to next process or...
         if stage_index + 1 < len(job_parameters.stage_list):
-            logger.info("Next process")
+            logger.debug("Next process")
 
             stage_index += 1
             stage_name = job_parameters.stage_list[stage_index]
@@ -520,7 +520,7 @@ def process_unsafe(
             pypeline_inputindices[stage_name] = 0
             pypeline_argindices[stage_name] = 0
         else:  # ... rewind to the closest next novel process (argumentindices indicate exhausted permutations)
-            logger.info(f"Rewinding after {stage_name}")
+            logger.debug(f"Rewinding after {stage_name}")
             while stage_index >= 0 and pypeline_argindices[stage_name] >= len(
                 pypeline_args[stage_name]
             ):
@@ -556,7 +556,7 @@ def process_unsafe(
             )
             logger.info(progress_str)
 
-            logger.info(f"Rewound to {job_parameters.stage_list[stage_index]}")
+            logger.debug(f"Rewound to {job_parameters.stage_list[stage_index]}")
 
     if hasattr(context, "note"):
         context.note(

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 import json
 
@@ -17,7 +17,9 @@ class _RedisStatusInterface:
         self.rc_subscriptions = {}
         for chan in channel_subscriptions:
             pubsub = self.redis_obj.pubsub(ignore_subscribe_messages=ignore_subscribe_messages)
-            pubsub.subscribe(chan)
+            pubsub.subscribe(
+                f"pypeline://{chan}"
+            )
             self.rc_subscriptions[chan] = pubsub
 
     def __del__(self):
@@ -60,28 +62,29 @@ class _RedisStatusInterface:
         return self.redis_obj.publish(f"pypeline://{self.redis_address}/{channel}", message)
 
 
-
 class RedisServiceInterface(_RedisStatusInterface):
     REDIS_HASH_KEYS = ["#CONTEXT", "#CONTEXTENV", "#STAGES", "STATUS", "PULSE", "PROCESSES"]
 
     def __init__(self, id: ServiceIdentifier, **redis_kwargs):
         if not isinstance(id, ServiceIdentifier):
             raise ValueError("Interface ID must be an instance of ProcessIdentifier")
-        super().__init__(id.redis_address(), "pypeline:///set", **redis_kwargs)
+        super().__init__(id.redis_address(), "/set", **redis_kwargs)
         self.id = id
 
 
     def process_broadcast_set_messages(self, timeout_s):
-        message = self.rc_subscriptions["pypeline:///set"].get_message(timeout=timeout_s)
+        message = self.rc_subscriptions["/set"].get_message(timeout=timeout_s)
         if message is None:
             return False
+        while message is not None:
+            if isinstance(message.get("data"), bytes):
+                message["data"]  = message["data"].decode()
+            # TODO rather implement redis_obj.hset(, mapping={})
+            for keyvaluestr in message["data"].split("\n"):
+                parts = keyvaluestr.split("=")
+                self.set(parts[0], '='.join(parts[1:]))
 
-        if isinstance(message.get("data"), bytes):
-            message["data"]  = message["data"].decode()
-        # TODO rather implement redis_obj.hset(, mapping={})
-        for keyvaluestr in message["data"].split("\n"):
-            parts = keyvaluestr.split("=")
-            self.set(parts[0], '='.join(parts[1:]))
+            message = self.rc_subscriptions["/set"].get_message(timeout=timeout_s)
         return True
 
     job_event_message: JobEventMessage = property(
@@ -134,7 +137,7 @@ class RedisServiceInterface(_RedisStatusInterface):
             assertion_tuple=(isinstance(value, ServiceStatus), f"Must be instance of Status")
         ),
         fdel=None,
-        doc="Status object."
+        doc="ServiceStatus object."
     )
 
     processes: List[ProcessState] = property(
@@ -175,12 +178,116 @@ class RedisServiceInterface(_RedisStatusInterface):
     )
 
     process_status: ProcessStatus = property(
-        fget=lambda self: ProcessStatus.from_str(self.__getitem__("STATUS")),
+        fget=lambda self: [
+            ProcessStatus(**json.loads[self.__getitem__(f"STATUS:{process_id}")])
+            for process_id in range(self.status.workers_total_count)
+        ],
         fset=lambda self, value: self.set(
             f"STATUS:{value.process_id}",
             str(value),
             assertion_tuple=(isinstance(value, ProcessStatus), f"Must be instance of ProcessStatus")
         ),
         fdel=None,
-        doc="Status object."
+        doc="ProcessStatus object."
+    )
+
+class RedisClientInterface(_RedisStatusInterface):
+
+    def __init__(self, id: ServiceIdentifier, **redis_kwargs):
+        if not isinstance(id, ServiceIdentifier):
+            raise ValueError("Interface ID must be an instance of ProcessIdentifier")
+        self.timeout_s = redis_kwargs.pop("timeout_s", 0.5)
+        super().__init__(
+            id.redis_address(),
+            "/set",
+            f"{id.redis_address()}/jobs",
+            f"{id.redis_address()}/notes",
+            **redis_kwargs
+        )
+        self.id = id
+
+    @staticmethod
+    def broadcast(keyvalues: Dict[str, str], redis_obj=None, **redis_kwargs):
+        if redis_obj is None:
+            redis_obj = redis.Redis(**redis_kwargs)
+        redis_obj.publish(f"pypeline:///set", json.dumps(keyvalues))
+
+    broadcast_set_message: Dict[str, str] = property(
+        fget=None,
+        fset=lambda self, value: RedisClientInterface.broadcast(value, self.redis_obj),
+        fdel=None,
+        doc="Gets `JobEventMessage` from the 'jobs' channel."
+    )
+
+    job_event_message: JobEventMessage = property(
+        fget=lambda self: self.rc_subscriptions[f"{self.id.redis_address()}/jobs"].get_message(
+            timeout=self.timeout_s
+        ),
+        fset=None,
+        fdel=None,
+        doc="Gets `JobEventMessage` from the 'jobs' channel."
+    )
+
+    context: str = property(
+        fget=lambda self: self.__getitem__("#CONTEXT"),
+        fset=lambda self, value: self.__setitem__("#CONTEXT", value),
+        fdel=None,
+        doc="Name of the contextual stage."
+    )
+
+    context_environment: str = property(
+        fget=lambda self: self.get("#CONTEXTENV", None),
+        fset=lambda self, value: self.__setitem__("#CONTEXTENV", value),
+        fdel=None,
+        doc="Optional environment string argument for the context's run function."
+    )
+
+    stages: List[str] = property(
+        fget=lambda self: self.__getitem__("#STAGES").split(" "),
+        fset=lambda self, value: self.__setitem__("#STAGES", " ".join(value)),
+        fdel=None,
+        doc="Space delimited list of stages that follow the contextual stage."
+    )
+
+    pulse: datetime = property(
+        fget=lambda self: datetime.strptime(self.__getitem__("PULSE"), "%Y/%m/%d %H:%M:%S"),
+        fset=None,
+        fdel=None,
+        doc="Heartbeat datetime that is updated during operation to indicate that the service is alive."
+    )
+
+    status: ServiceStatus = property(
+        fget=lambda self: ServiceStatus(**json.loads(self.__getitem__("STATUS"))),
+        fset=None,
+        fdel=None,
+        doc="ServiceStatus object."
+    )
+
+    processes: List[ProcessState] = property(
+        fget=lambda self: {
+            ProcessIdentifier.from_str(k): ProcessState(*v)
+            for k, v in json.loads(self.__getitem__("PROCESSES")).items()
+        },
+        fset=None,
+        fdel=None,
+        doc="A map of process identifiers to state-timestamps."
+    )
+
+    process_note_message: ProcessNoteMessage = property(
+        fget=lambda self: self.rc_subscriptions[f"{self.id.redis_address()}/notes"].get_message(
+            timeout=self.timeout_s
+        ),
+        fset=None,
+        fdel=None,
+        doc="Publishes `ProcessNoteMessage` under the 'notes' channel."
+    )
+
+    process_status: List[ProcessStatus] = property(
+        fget=lambda self: [
+            ProcessStatus(**json.loads[self.__getitem__(f"STATUS:{process_id}")])
+            for process_id in range(self.status.workers_total_count)
+        ],
+        fset=None,
+        fdel=None,
+        doc="ProcessStatus object."
     )

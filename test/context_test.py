@@ -58,15 +58,15 @@ def setupstage(stage, logger = None):
         logger = logging.getLogger(NAME)
 
     global STATE_context
-    if hasattr(stage, "CONTEXT"):
-        stage.CONTEXT = STATE_context
+    if hasattr(stage, "STAGE_CONTEXT"):
+        stage.STAGE_CONTEXT = STATE_context
 
 
 def note(processnote: ProcessNote, **kwargs):
     if kwargs["logger"] is None:
         kwargs["logger"] = logging.getLogger(NAME)
     
-    kwargs["logger"].info(f"{ProcessNote.string(processnote)}: kwargs={kwargs}")
+    kwargs["logger"].info(f"{processnote.value}: kwargs={kwargs}")
 
 
 if __name__ == "__main__":

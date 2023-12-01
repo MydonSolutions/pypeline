@@ -284,7 +284,7 @@ def main():
                     error = RuntimeError(f"Queue limit of {args.queue_limit} reached."),
                 )
 
-            redis_interface.job_action_message = JobEventMessage(
+            redis_interface.job_event_message = JobEventMessage(
                 action=action,
                 job_parameters=params
             )
