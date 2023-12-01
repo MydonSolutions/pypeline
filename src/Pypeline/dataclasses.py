@@ -88,7 +88,7 @@ class ProcessNoteMessage(BaseModel):
 class JobParameters(BaseModel):
     job_id: int
     redis_kvcache: Dict[str, str]
-    stage_outputs: Dict[str, List] # {stage_name::string: output::list}
+    stage_outputs: Dict[str, list]
     stage_list: List[str]
     dehydrated_context: Union[tuple, dict, list] # context.dehydrate()
 
@@ -102,6 +102,7 @@ class JobEvent(str, Enum):
 class JobEventMessage(BaseModel):
     action: JobEvent
     job_parameters: JobParameters
+    context_environment: str
 
     def __str__(self) -> str:
         return self.model_dump_json()

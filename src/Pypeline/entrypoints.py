@@ -159,10 +159,9 @@ def main():
         while True:
             for process_id, process_async_obj in enumerate(process_asyncobj_jobs):
                 if process_async_obj is not None and process_async_obj.ready():
-                    logger.info(f"Process #{process_id} is complete.")
-
                     successful = process_async_obj.get()
-                    logger.info(f"\tSuccessfully: {successful}.")
+                    logger.info(f"Process #{process_id} has {'completed' if successful else 'failed'}.")
+
                     process_states[process_id] = ProcessState.Finished
                     if not successful:
                         process_states[process_id] = ProcessState.Errored
@@ -173,7 +172,7 @@ def main():
 
                 if process_asyncobj_jobs[process_id] is None and len(status.process_job_queue) > 0:
                     job_parameters = status.process_job_queue.pop(0)
-                    logger.info(f"Spawning Process #{process_id}:\n\t#STAGES={job_parameters.redis_kvcache.get('#STAGES', None)}\n\t{job_parameters.dehydrated_context}")
+                    logger.info(f"Spawning Process #{process_id}")
                     process_asyncobj_jobs[process_id] = pool.apply_async(
                         PypelineProcess,
                         (
@@ -196,7 +195,7 @@ def main():
                 if status.workers_busy_count > 0:
                     # continue to wait on processes
                     continue
-                logger.info(f"{context_name}.run() returned False. Exiting")
+                logger.warning(f"{context_name}.run() returned False. Exiting")
                 break
 
             process_changed = (
@@ -212,10 +211,10 @@ def main():
                 previous_stage_list = stage_list
 
                 exclusion_list = get_stage_keys(
-                    stage_list.split(' ')
+                    stage_list
                 )
                 exclusion_list.extend(redis_interface.REDIS_HASH_KEYS)
-                logger.info(f"Clear all except: {exclusion_list}")
+                logger.debug(f"Clear all except: {exclusion_list}")
                 redis_interface.clear(exclusion_list)
 
             new_context_name = redis_interface.context
@@ -235,9 +234,10 @@ def main():
                     redis_interface.context = context_name
 
             # Wait until the process-stage returns outputs
+            context_environment = redis_interface.context_environment
             try:
                 context_outputs = context.run(
-                    env=redis_interface.context_environment,
+                    env=context_environment,
                     logger=logger
                 )
             except KeyboardInterrupt:
@@ -248,11 +248,7 @@ def main():
             if context_outputs is None:
                 continue
             if context_outputs is False:
-                logger.info(f"{context_name}.run() returned False. Awaiting processes: {status})")
-                continue
-                
-            if len(context_outputs) == 0:
-                logger.info("No captured data found for processing.")
+                logger.warn(f"{context_name}.run() returned False. Awaiting processes: {status})")
                 continue
 
             redis_kvcache = redis_interface.get_all()
@@ -286,7 +282,8 @@ def main():
 
             redis_interface.job_event_message = JobEventMessage(
                 action=action,
-                job_parameters=params
+                job_parameters=params,
+                context_environment=context_environment
             )
             if action != JobEvent.Queue:
                 continue

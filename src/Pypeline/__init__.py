@@ -30,7 +30,7 @@ def import_module(
     definition_dict=globals(),
     logger=None
 ):
-    log_info_func = print if logger is None else logger.info
+    log_debug_func = print if logger is None else logger.debug
     log_error_func = print if logger is None else logger.error
     if stagename not in definition_dict:  # stagename not in sys.modules:
         try:
@@ -47,7 +47,7 @@ def import_module(
             )
             raise error
 
-        log_info_func(f"Imported {modulePrefix}_{stagename}.")
+        log_debug_func(f"Imported {modulePrefix}_{stagename}.")
 
         return True
 
@@ -65,7 +65,7 @@ def import_module(
         )
         return False
 
-    log_info_func(f"Reloaded {modulePrefix}_{stagename}.")
+    log_debug_func(f"Reloaded {modulePrefix}_{stagename}.")
     return True
 
 
@@ -75,7 +75,7 @@ def parse_input_template(
     pypeline_lastinput,
     logger=None
 ):
-    log_info_func = print if logger is None else logger.info
+    log_debug_func = print if logger is None else logger.debug
     log_error_func = print if logger is None else logger.error
 
     if input_template is None:
@@ -90,7 +90,7 @@ def parse_input_template(
         # TODO flatten this out (extract flagchar and process uniformly)
         if symbol in pypeline_outputs:
             if len(pypeline_outputs[symbol]) == 0:
-                log_info_func("Stage {} produced zero outputs.".format(symbol))
+                log_debug_func("Stage {} produced zero outputs.".format(symbol))
                 return False
             input_values[symbol] = pypeline_outputs[symbol]
         elif symbol[0] == "&" or (
@@ -101,13 +101,13 @@ def parse_input_template(
             if symbol[0] == "^":
                 input_values[symbol] = pypeline_lastinput[symbol[1:]]
             elif symbol[0] == "&":
-                log_info_func('Detected verbatim input "{}"'.format(symbol))
+                log_debug_func('Detected verbatim input "{}"'.format(symbol))
                 input_values[symbol] = [symbol[1:]]
             elif symbol[0] == "*":
                 if len([symbol[1:]]) == 0:
-                    log_info_func("Stage {} produced zero outputs.".format(symbol))
+                    log_debug_func("Stage {} produced zero outputs.".format(symbol))
                     return False
-                log_info_func('Detected exhaustive input "{}"'.format(symbol))
+                log_debug_func('Detected exhaustive input "{}"'.format(symbol))
                 input_values[symbol] = [
                     pypeline_outputs[symbol[1:]]
                 ]  # wrap in list to treat as single value
@@ -281,7 +281,7 @@ def process_unsafe(
         stage_dict:
             The dictionary of modules, holding only the context stage.
     '''
-    logger.info(f"{identifier} started.")
+    logger.debug(f"{identifier} starting: {job_parameters}")
     status = ProcessStatus(
         job_id=job_parameters.job_id,
         process_id=identifier.process_enumeration,
@@ -369,19 +369,20 @@ def process_unsafe(
         stage_name = job_parameters.stage_list[stage_index]
 
         # wait on any previous POPENED
+        #TODO consider removing detached stage capabilities...
         if stage_name[-1] == "&" and stage_name in pypeline_stage_popened:
             redis_interface.process_status = status
             for popenIdx, popen in enumerate(pypeline_stage_popened[stage_name]):
                 poll_count = 0
                 while popen.poll() is None:
                     if poll_count == 0:
-                        logger.info(
+                        logger.debug(
                             "Polling previous %s stage's detached process for completion (#%d)"
                             % (stage_name, popenIdx)
                         )
                     poll_count = (poll_count + 1) % 10
                     time.sleep(1)
-            logger.info(
+            logger.debug(
                 "%s's %d process(es) are complete."
                 % (stage_name, len(pypeline_stage_popened[stage_name]))
             )
@@ -533,7 +534,7 @@ def process_unsafe(
                     pypeline_args,
                     pypeline_argindices,
                 )
-                logger.info(progress_str)
+                logger.debug(progress_str)
 
                 stage_index -= 1
                 stage_name = job_parameters.stage_list[stage_index]
@@ -542,7 +543,7 @@ def process_unsafe(
 
             # Break if there are no novel process argument-input permutations
             if stage_index < 0:
-                logger.info("Processing Done!")
+                logger.debug("Processing Done!")
                 redis_interface.process_status = status
                 break
             progress_str = get_proc_dict_progress_str(
@@ -554,7 +555,7 @@ def process_unsafe(
                 pypeline_args,
                 pypeline_argindices,
             )
-            logger.info(progress_str)
+            logger.debug(progress_str)
 
             logger.debug(f"Rewound to {job_parameters.stage_list[stage_index]}")
 

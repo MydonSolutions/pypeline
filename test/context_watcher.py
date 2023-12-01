@@ -39,16 +39,14 @@ def run(env = None, logger = None):
             ),
             host=STATE_env["REDIS_HOSTNAME"],
             port=STATE_env["REDIS_PORT"],
-            timeout_s=None
+            timeout_s=1
         )
 
-    logger.info(f"Blocking on job event message from {STATE_redis_client.id}")
+    logger.info(f"Waiting 1 second for job event message from {STATE_redis_client.id}")
     job_event_message = STATE_redis_client.job_event_message
     if job_event_message is not None:
         job_event_message = JobEventMessage(**json.loads(job_event_message["data"]))
-    
-    logger.info(f"Event: {job_event_message}")
-    if job_event_message is not None:
+        logger.info(f"Event: {job_event_message}")
         return [
             job_event_message
         ]

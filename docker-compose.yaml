@@ -27,4 +27,4 @@ services:
       - redishost
     environment:
       - PYTHONPATH=/work/test/
-    command: pypeline 0 watcher -vvv --redis-hostname redishost --redis-port 6379 -kv "#STAGES=printout" "PRINTOUT_INP=watcher" "PRINTOUT_ARG=--sleep 0" "#CONTEXTENV=TARGET_HOSTNAME=pypeline TARGET_ENUMERATION=0 REDIS_HOSTNAME=redishost REDIS_PORT=6379"
+    command: pypeline 0 watcher -vv --redis-hostname redishost --redis-port 6379 -kv "#STAGES=printout" "PRINTOUT_INP=watcher" "PRINTOUT_ARG=--sleep 0" "#CONTEXTENV=TARGET_HOSTNAME=pypeline TARGET_ENUMERATION=0 REDIS_HOSTNAME=redishost REDIS_PORT=6379"
