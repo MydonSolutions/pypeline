@@ -100,7 +100,7 @@ class JobEvent(str, Enum):
 
 
 class JobEventMessage(BaseModel):
-    action: JobEvent
+    event: JobEvent
     job_parameters: JobParameters
     context_environment: str
 

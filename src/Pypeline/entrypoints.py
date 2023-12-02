@@ -265,14 +265,14 @@ def main():
                 dehydrated_context=context.dehydrate()
             )
             job_id += 1
-            action = JobEvent.Queue
+            event = JobEvent.Queue
 
             if stages_keyvalue is None or "skip" in stages_keyvalue[0:4]:
                 logger.info("#STAGES key begins with 'skip' or is missing. Not processing.")
-                action=JobEvent.Skip
+                event=JobEvent.Skip
 
             elif len(status.process_job_queue) == args.queue_limit:
-                action=JobEvent.Drop
+                event=JobEvent.Drop
                 context.note( # TODO change to service note
                     ProcessNote.Error,
                     process_id = None,
@@ -281,11 +281,11 @@ def main():
                 )
 
             redis_interface.job_event_message = JobEventMessage(
-                action=action,
+                event=event,
                 job_parameters=params,
                 context_environment=context_environment
             )
-            if action != JobEvent.Queue:
+            if event != JobEvent.Queue:
                 continue
 
             status.process_job_queue.append(params)
