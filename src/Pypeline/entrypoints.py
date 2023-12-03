@@ -260,9 +260,10 @@ def main():
             params = JobParameters(
                 job_id=job_id,
                 redis_kvcache=redis_kvcache,
-                stage_outputs={context_name: context_outputs},
-                stage_list=stages_keyvalue.split(" "),
-                dehydrated_context=context.dehydrate()
+                context_name=context_name,
+                context_output=context_outputs,
+                context_dehydrated=context.dehydrate(),
+                stage_list=stages_keyvalue.split(" ")
             )
             job_id += 1
             event = JobEvent.Queue

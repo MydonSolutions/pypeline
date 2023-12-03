@@ -236,15 +236,25 @@ def process(
     )
 
     stage_dict = {}
-    context_name = list(job_parameters.stage_outputs.keys())[0]
-    import_module(context_name, modulePrefix="context", definition_dict=stage_dict, logger=logger)
+    import_module(job_parameters.context_name, modulePrefix="context", definition_dict=stage_dict, logger=logger)
     try:
         process_unsafe(identifier, job_parameters, redis_interface, logger, stage_dict)
         return True
+    except StageException as err:
+        logger.error(f"{err}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
+        redis_interface.process_note_message = ProcessNoteMessage(
+            job_id=job_parameters.job_id,
+            process_note=ProcessNote.StageError,
+            process_id=identifier.process_enumeration,
+            stage_name=err.stage_name,
+            error_message=f"{err}",
+        )
     except BaseException as err:
-        logger.error(f"\tTraceback: {traceback.format_exc()}.")
+        logger.error(f"{err}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
 
-        process_context = stage_dict[context_name]
+        process_context = stage_dict[job_parameters.context_name]
         if hasattr(process_context, "note"):
             process_context.note(
                 ProcessNote.Error,
@@ -297,8 +307,8 @@ def process_unsafe(
     )
     redis_interface.process_status = status
 
-    context = stage_dict[list(stage_dict.keys())[0]]
-    context.rehydrate(job_parameters.dehydrated_context)
+    context = stage_dict[job_parameters.context_name]
+    context.rehydrate(job_parameters.context_dehydrated)
 
     if hasattr(context, "note"):
         context.note(
@@ -327,6 +337,9 @@ def process_unsafe(
     pypeline_stage_popened = {}
 
     stage_index = 0
+    stage_outputs = {
+        job_parameters.context_name: job_parameters.context_output
+    }
 
     for stage_name in job_parameters.stage_list:
         try:
@@ -395,7 +408,7 @@ def process_unsafe(
                 pypeline_input_templateindices[stage_name]
             ]
             pypeline_inputs[stage_name] = parse_input_template(
-                proc_input_template, job_parameters.stage_outputs, pypeline_lastinput,
+                proc_input_template, stage_outputs, pypeline_lastinput,
                 logger = logger
             )
             logger.debug(f"{stage_name} inputs: {pypeline_inputs[stage_name]}")
@@ -445,7 +458,7 @@ def process_unsafe(
 
         checkpoint_time = time.time()
         try:
-            job_parameters.stage_outputs[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
+            stage_outputs[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
         except BaseException as err:
             if hasattr(context, "note"):
                 context.note(
@@ -456,17 +469,7 @@ def process_unsafe(
                     stage = stage_dict[stage_name],
                     error = err
                 )
-
-            stage_err = StageException(stage_name, err)
-            message = f"{stage_err}"
-            redis_interface.process_note_message = ProcessNoteMessage(
-                job_id=job_parameters.job_id,
-                process_note=ProcessNote.StageError,
-                process_id=identifier.process_enumeration,
-                stage_name=stage_name,
-                error_message=message,
-            )
-            raise stage_err #TODO ensure this is the neatest error stack possible
+            raise StageException(stage_name, err) #TODO ensure this is the neatest error stack possible
 
         keywords["times"].append(time.time() - checkpoint_time)
         keywords["stages"].append(stage_name)
@@ -487,7 +490,7 @@ def process_unsafe(
                 redis_kvcache = job_parameters.redis_kvcache,
                 logger = logger,
                 stage = stage_dict[stage_name],
-                output = job_parameters.stage_outputs[stage_name]
+                output = stage_outputs[stage_name]
             )
         redis_interface.process_note_message = ProcessNoteMessage(
             job_id=job_parameters.job_id,
