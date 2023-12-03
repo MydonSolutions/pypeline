@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional, Callable, Any
 from datetime import datetime
 import json
 
@@ -60,6 +60,16 @@ class _RedisStatusInterface:
     def publish(self, channel, message, assertion_tuple=(True, "")):
         assert assertion_tuple[0], assertion_tuple[1]
         return self.redis_obj.publish(f"pypeline://{self.redis_address}/{channel}", message)
+
+    def get_message(self,
+        channel,
+        data_constructor: Optional[Callable[[str], Any]] = None,
+        timeout_s:Optional[float] = None
+    ):
+        message = self.rc_subscriptions[channel].get_message(timeout=timeout_s)
+        if message is not None and data_constructor is not None:
+            return data_constructor(message["data"])
+        return message
 
 
 class RedisServiceInterface(_RedisStatusInterface):
@@ -220,8 +230,10 @@ class RedisClientInterface(_RedisStatusInterface):
     )
 
     job_event_message: JobEventMessage = property(
-        fget=lambda self: self.rc_subscriptions[f"{self.id.redis_address()}/jobs"].get_message(
-            timeout=self.timeout_s
+        fget=lambda self: self.get_message(
+            f"{self.id.redis_address()}/jobs",
+            data_constructor=lambda data_str: JobEventMessage(**json.loads(data_str)),
+            timeout_s=self.timeout_s
         ),
         fset=None,
         fdel=None,
@@ -274,8 +286,10 @@ class RedisClientInterface(_RedisStatusInterface):
     )
 
     process_note_message: ProcessNoteMessage = property(
-        fget=lambda self: self.rc_subscriptions[f"{self.id.redis_address()}/notes"].get_message(
-            timeout=self.timeout_s
+        fget=lambda self: self.get_message(
+            f"{self.id.redis_address()}/notes",
+            data_constructor=lambda data_str: ProcessNoteMessage(**json.loads(data_str)),
+            timeout_s=self.timeout_s
         ),
         fset=None,
         fdel=None,

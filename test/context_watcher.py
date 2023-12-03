@@ -45,7 +45,6 @@ def run(env = None, logger = None):
     logger.info(f"Waiting 1 second for job event message from {STATE_redis_client.id}")
     job_event_message = STATE_redis_client.job_event_message
     if job_event_message is not None:
-        job_event_message = JobEventMessage(**json.loads(job_event_message["data"]))
         logger.info(f"Event: {job_event_message}")
         return [
             job_event_message
