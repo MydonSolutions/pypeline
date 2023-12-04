@@ -230,7 +230,7 @@ def main():
                         logger=logger
                     )
                 except:
-                    logger.warn(f"Could not load new Context: `{new_context_name}`. Maintaining current Context: `{context_name}`.")
+                    logger.warning(f"Could not load new Context: `{new_context_name}`. Maintaining current Context: `{context_name}`.")
                     redis_interface.context = context_name
 
             # Wait until the process-stage returns outputs
@@ -246,9 +246,10 @@ def main():
                 continue
 
             if context_outputs is None:
+                logger.debug(f"{context_name}.run() returned None.")
                 continue
             if context_outputs is False:
-                logger.warn(f"{context_name}.run() returned False. Awaiting processes: {status})")
+                logger.warning(f"{context_name}.run() returned False. Awaiting processes: {status})")
                 continue
 
             redis_kvcache = redis_interface.get_all()
@@ -273,19 +274,24 @@ def main():
                 event=JobEvent.Skip
 
             elif len(status.process_job_queue) == args.queue_limit:
+                message = f"Queue limit of {args.queue_limit} reached."
+                logger.warning(message)
+
                 event=JobEvent.Drop
                 context.note( # TODO change to service note
                     ProcessNote.Error,
                     process_id = None,
                     logger = logger,
-                    error = RuntimeError(f"Queue limit of {args.queue_limit} reached."),
+                    error = RuntimeError(message),
                 )
 
-            redis_interface.job_event_message = JobEventMessage(
+            job_event_message = JobEventMessage(
                 event=event,
                 job_parameters=params,
                 context_environment=context_environment
             )
+            logger.debug(f"job_event_message: {job_event_message}")
+            redis_interface.job_event_message = job_event_message
             if event != JobEvent.Queue:
                 continue
 
