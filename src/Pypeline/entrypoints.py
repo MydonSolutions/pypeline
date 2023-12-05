@@ -91,8 +91,8 @@ def main():
     
     if args.log_directory is not None:
         for ext_level_tuple in [
-            ("log", logging.INFO),
-            ("err", logging.WARNING)
+            ("log", min(logging.INFO, logger_level)), # INFO and finer
+            ("err", max(logging.WARNING, logger_level)) # WARNING and coarser
         ]:
             log_ext, log_level = ext_level_tuple
             if log_level < logger_level:
