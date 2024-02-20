@@ -76,8 +76,15 @@ def main():
         default=0,
         help="Increase the verbosity of the logs (0=Error, 1=Warn, 2=Info, 3=Debug)."
     )
+    parser.add_argument(
+        "--multiprocessing-start-method",
+        choices=["spawn", "fork"],
+        default="fork",
+        help="Set the process start method."
+    )
     args = parser.parse_args()
-    mp.set_start_method("fork")
+    mp.set_start_method(args.multiprocessing_start_method)
+    pool = mp.Pool(processes=args.workers)
     
     service_id = ServiceIdentifier(
         socket.gethostname(),
@@ -155,7 +162,7 @@ def main():
     atexit.register(lambda: logger.warning("Exiting."))
 
     context_outputs = None
-    with mp.Pool(processes=args.workers) as pool:
+    with pool:
         while True:
             for process_id, process_async_obj in enumerate(process_asyncobj_jobs):
                 if process_async_obj is not None and process_async_obj.ready():
@@ -246,7 +253,7 @@ def main():
                 continue
 
             if context_outputs is None:
-                logger.debug(f"{context_name}.run() returned None.")
+                # logger.debug(f"{context_name}.run() returned None.")
                 continue
             if context_outputs is False:
                 logger.warning(f"{context_name}.run() returned False. Awaiting processes: {status})")
@@ -264,13 +271,13 @@ def main():
                 context_name=context_name,
                 context_output=context_outputs,
                 context_dehydrated=context.dehydrate(),
-                stage_list=stages_keyvalue.split(" ")
+                stage_list=stages_keyvalue.split(" ") if stages_keyvalue is not None else []
             )
             job_id += 1
             event = JobEvent.Queue
 
             if stages_keyvalue is None or "skip" in stages_keyvalue[0:4]:
-                logger.info("#STAGES key begins with 'skip' or is missing. Not processing.")
+                logger.info(f"#STAGES key begins with 'skip' or is missing. Not processing. ('{stages_keyvalue}')")
                 event=JobEvent.Skip
 
             elif len(status.process_job_queue) == args.queue_limit:
