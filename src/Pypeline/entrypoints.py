@@ -1,6 +1,5 @@
 import os
 import argparse
-import time
 import socket
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -83,8 +82,6 @@ def main():
         help="Set the process start method."
     )
     args = parser.parse_args()
-    mp.set_start_method(args.multiprocessing_start_method)
-    pool = mp.Pool(processes=args.workers)
     
     service_id = ServiceIdentifier(
         socket.gethostname(),
@@ -121,6 +118,8 @@ def main():
 
     logger.setLevel(logger_level)
     logger.warning("Start up.")
+    mp.set_start_method(args.multiprocessing_start_method)
+    pool = mp.Pool(processes=args.workers)
 
     context_dict = {}
     context_name = args.context
@@ -149,7 +148,6 @@ def main():
     process_changed_count = 0
     process_asyncobj_jobs: List[Optional[mp.pool.ApplyResult]] = [None]*args.workers
     process_states = [ProcessState.Idle]*args.workers
-    process_busy_parameters = [None]*args.workers
     status = ServiceStatus(
         workers_busy_count=0,
         workers_total_count=args.workers,
@@ -164,9 +162,10 @@ def main():
     context_outputs = None
     with pool:
         while True:
-            for process_id, process_async_obj in enumerate(process_asyncobj_jobs):
+            for process_id in range(len(process_asyncobj_jobs)):
+                process_async_obj = process_asyncobj_jobs[process_id]
                 if process_async_obj is not None and process_async_obj.ready():
-                    successful = process_async_obj.get()
+                    successful = process_async_obj.get() # process is safely wrapped
                     logger.info(f"Process #{process_id} has {'completed' if successful else 'failed'}.")
 
                     process_states[process_id] = ProcessState.Finished
@@ -174,7 +173,6 @@ def main():
                         process_states[process_id] = ProcessState.Errored
 
                     process_asyncobj_jobs[process_id] = None
-                    process_busy_parameters[process_id] = None
                     status.workers_busy_count -= 1
 
                 if process_asyncobj_jobs[process_id] is None and len(status.process_job_queue) > 0:
@@ -218,7 +216,8 @@ def main():
                 previous_stage_list = stage_list
 
                 exclusion_list = get_stage_keys(
-                    stage_list
+                    stage_list,
+                    logger=logger
                 )
                 exclusion_list.extend(redis_interface.REDIS_HASH_KEYS)
                 logger.debug(f"Clear all except: {exclusion_list}")

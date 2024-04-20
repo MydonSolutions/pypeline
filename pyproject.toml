@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Pypeline"
-version = "0.6.9"
+version = "0.6.10"
 authors = [
   { name="Ross Donnachie", email="code@radonn.co.za" },
 ]

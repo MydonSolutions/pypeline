@@ -4,7 +4,7 @@ import logging
 import sys
 import traceback
 
-from .redis_interface import RedisServiceInterface, RedisClientInterface
+from .redis_interface import RedisServiceInterface
 from .dataclasses import ProcessIdentifier, ServiceIdentifier, JobParameters, ProcessNote, ProcessStatus, ProcessNoteMessage, StageTimestamp, JobEventMessage
 
 
@@ -241,14 +241,14 @@ def process(
         process_unsafe(identifier, job_parameters, redis_interface, logger, stage_dict)
         return True
     except StageException as err:
-        logger.error(f"{err}")
+        logger.error(f"StageException: {err}")
         logger.debug(f"Traceback: {traceback.format_exc()}")
         redis_interface.process_note_message = ProcessNoteMessage(
             job_id=job_parameters.job_id,
             process_note=ProcessNote.StageError,
             process_id=identifier.process_enumeration,
             stage_name=err.stage_name,
-            error_message=f"{err}",
+            error_message=f"{err.exception}",
         )
     except BaseException as err:
         logger.error(f"{err}")
@@ -270,6 +270,7 @@ def process(
             stage_name=None,
             error_message=traceback.format_exc()
         )
+    return False
 
 def process_unsafe(
     identifier: ProcessIdentifier,
@@ -297,7 +298,7 @@ def process_unsafe(
         process_id=identifier.process_enumeration,
         stage_timestamps=[]
     )
-    
+
     redis_interface.process_note_message = ProcessNoteMessage(
         job_id=job_parameters.job_id,
         process_note=ProcessNote.Start,
