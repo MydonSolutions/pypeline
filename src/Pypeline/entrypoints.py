@@ -83,11 +83,11 @@ def main_cli():
     )
     args = parser.parse_args()
 
+    mp.set_start_method(args.multiprocessing_start_method)
     main(
         args.instance,
         args.context,
         kv = args.kv,
-        multiprocessing_start_method = args.multiprocessing_start_method,
         redis_hostname = args.redis_hostname,
         redis_port = args.redis_port,
         workers = args.workers,
@@ -96,7 +96,6 @@ def main_cli():
         log_directory = args.log_directory,
         log_backup_days = args.log_backup_days,
     )
-    
 
 def main(
     instance: int,
@@ -147,7 +146,6 @@ def main(
 
     logger.setLevel(logger_level)
     logger.warning("Start up.")
-    mp.set_start_method(multiprocessing_start_method)
     pool = mp.Pool(processes=workers)
 
     context_dict = {}
@@ -313,12 +311,13 @@ def main(
                 logger.warning(message)
 
                 event=JobEvent.Drop
-                context.note( # TODO change to service note
-                    ProcessNote.Error,
-                    process_id = None,
-                    logger = logger,
-                    error = RuntimeError(message),
-                )
+                if hasattr(context, "note"):
+                    context.note( # TODO change to service note
+                        ProcessNote.Error,
+                        process_id = None,
+                        logger = logger,
+                        error = RuntimeError(message),
+                    )
 
             job_event_message = JobEventMessage(
                 event=event,
@@ -333,4 +332,9 @@ def main(
             status.process_job_queue.append(params)
     
     atexit.unregister(lambda: logger.warning("Exiting."))
+    pool.close()
     logger.warning("Finished.")
+    pool.join()
+    if hasattr(context, "reset"):
+        context.reset()
+    logger.handlers.clear()

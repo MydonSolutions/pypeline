@@ -27,7 +27,7 @@ class _RedisStatusInterface:
             # not initialised properly
             return
         for chan, pubsub in self.rc_subscriptions.items():
-            pubsub.unsubscribe()
+            pubsub.close()
 
     def __setitem__(self, key, value):
         return self.redis_obj.hset(self.rh_status, key, value)
