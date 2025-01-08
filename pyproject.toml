@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Pypeline"
-version = "0.6.10"
+version = "0.6.11"
 authors = [
   { name="Ross Donnachie", email="code@radonn.co.za" },
 ]
@@ -22,4 +22,4 @@ dynamic = ["dependencies"]
 dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
-pypeline = "Pypeline:entrypoints.main"
+pypeline = "Pypeline:entrypoints.main_cli"

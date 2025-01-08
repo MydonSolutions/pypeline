@@ -14,8 +14,8 @@ from .dataclasses import ServiceIdentifier, ServiceStatus, ProcessState, JobEven
 from .log_formatter import LogFormatter
 
 
-def main():
-    """ Entrypoint for a Pypeline"""
+def main_cli():
+    """ CLI Entrypoint for a Pypeline"""
 
     parser = argparse.ArgumentParser(
         description="A python-pipeline executable, with a Redis interface.",
@@ -82,18 +82,47 @@ def main():
         help="Set the process start method."
     )
     args = parser.parse_args()
+
+    main(
+        args.instance,
+        args.context,
+        kv = args.kv,
+        multiprocessing_start_method = args.multiprocessing_start_method,
+        redis_hostname = args.redis_hostname,
+        redis_port = args.redis_port,
+        workers = args.workers,
+        queue_limit = args.queue_limit,
+        verbosity = args.verbosity,
+        log_directory = args.log_directory,
+        log_backup_days = args.log_backup_days,
+    )
     
+
+def main(
+    instance: int,
+    context: str,
+    kv: List[str],
+    multiprocessing_start_method: str = "fork",
+    redis_hostname: str = "redishost",
+    redis_port: int = 6379,
+    workers: int = 4,
+    queue_limit: int = 10,
+    verbosity: int = 0,
+    log_directory: Optional[str] = None,
+    log_backup_days: int = 7,
+):
+    """ Entrypoint for a Pypeline"""
     service_id = ServiceIdentifier(
         socket.gethostname(),
-        args.instance
+        instance
     )
 
     logger = logging.getLogger(str(service_id))
     logger_level = [
         logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG
-    ][args.verbosity]
+    ][verbosity]
     
-    if args.log_directory is not None:
+    if log_directory is not None:
         for ext_level_tuple in [
             ("log", min(logging.INFO, logger_level)), # INFO and finer
             ("err", max(logging.WARNING, logger_level)) # WARNING and coarser
@@ -103,10 +132,10 @@ def main():
                 continue
 
             fh = TimedRotatingFileHandler(
-                os.path.join(args.log_directory, f"pypeline_{service_id.hostname}_{service_id.enumeration}.{log_ext}"),
+                os.path.join(log_directory, f"pypeline_{service_id.hostname}_{service_id.enumeration}.{log_ext}"),
                 when='midnight',
                 utc=True,
-                backupCount=args.log_backup_days
+                backupCount=log_backup_days
             )
             fh.setFormatter(LogFormatter())
             fh.setLevel(log_level)
@@ -118,11 +147,11 @@ def main():
 
     logger.setLevel(logger_level)
     logger.warning("Start up.")
-    mp.set_start_method(args.multiprocessing_start_method)
-    pool = mp.Pool(processes=args.workers)
+    mp.set_start_method(multiprocessing_start_method)
+    pool = mp.Pool(processes=workers)
 
     context_dict = {}
-    context_name = args.context
+    context_name = context
     assert import_module(context_name, modulePrefix="context", definition_dict=context_dict, logger=logger)
     context = context_dict.pop(context_name)
 
@@ -133,24 +162,24 @@ def main():
 
     redis_interface = RedisServiceInterface(
         service_id,
-        host=args.redis_hostname,
-        port=args.redis_port,
+        host=redis_hostname,
+        port=redis_port,
     )
 
     redis_interface.context = context_name
 
-    for kvstr in args.kv:
+    for kvstr in kv:
         delim_idx = kvstr.index("=")
         redis_interface.set(kvstr[0:delim_idx], kvstr[delim_idx + 1 :])
 
     previous_stage_list = None
     cleanup_stability_factor = 5
     process_changed_count = 0
-    process_asyncobj_jobs: List[Optional[mp.pool.ApplyResult]] = [None]*args.workers
-    process_states = [ProcessState.Idle]*args.workers
+    process_asyncobj_jobs: List[Optional[mp.pool.ApplyResult]] = [None]*workers
+    process_states = [ProcessState.Idle]*workers
     status = ServiceStatus(
         workers_busy_count=0,
-        workers_total_count=args.workers,
+        workers_total_count=workers,
         process_job_queue=[]
     )
     job_id = 1
@@ -183,8 +212,8 @@ def main():
                         (
                             service_id.process_identifier(process_id),
                             job_parameters,
-                            args.redis_hostname,
-                            args.redis_port
+                            redis_hostname,
+                            redis_port
                         )
                     )
                     process_states[process_id] = ProcessState.Busy
@@ -279,8 +308,8 @@ def main():
                 logger.info(f"#STAGES key begins with 'skip' or is missing. Not processing. ('{stages_keyvalue}')")
                 event=JobEvent.Skip
 
-            elif len(status.process_job_queue) == args.queue_limit:
-                message = f"Queue limit of {args.queue_limit} reached."
+            elif len(status.process_job_queue) == queue_limit:
+                message = f"Queue limit of {queue_limit} reached."
                 logger.warning(message)
 
                 event=JobEvent.Drop
@@ -302,3 +331,6 @@ def main():
                 continue
 
             status.process_job_queue.append(params)
+    
+    atexit.unregister(lambda: logger.warning("Exiting."))
+    logger.warning("Finished.")
