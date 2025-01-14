@@ -10,12 +10,20 @@ from typing import List, Optional
 
 from . import import_module, get_stage_keys, process as PypelineProcess
 from .redis_interface import RedisServiceInterface
-from .dataclasses import ServiceIdentifier, ServiceStatus, ProcessState, JobEvent, JobEventMessage, ProcessNote, JobParameters
+from .dataclasses import (
+    ServiceIdentifier,
+    ServiceStatus,
+    ProcessState,
+    JobEvent,
+    JobEventMessage,
+    ProcessNote,
+    JobParameters,
+)
 from .log_formatter import LogFormatter
 
 
 def main_cli():
-    """ CLI Entrypoint for a Pypeline"""
+    """CLI Entrypoint for a Pypeline"""
 
     parser = argparse.ArgumentParser(
         description="A python-pipeline executable, with a Redis interface.",
@@ -73,13 +81,13 @@ def main_cli():
         "--verbosity",
         action="count",
         default=0,
-        help="Increase the verbosity of the logs (0=Error, 1=Warn, 2=Info, 3=Debug)."
+        help="Increase the verbosity of the logs (0=Error, 1=Warn, 2=Info, 3=Debug).",
     )
     parser.add_argument(
         "--multiprocessing-start-method",
         choices=["spawn", "fork"],
         default="fork",
-        help="Set the process start method."
+        help="Set the process start method.",
     )
     args = parser.parse_args()
 
@@ -87,15 +95,16 @@ def main_cli():
     main(
         args.instance,
         args.context,
-        kv = args.kv,
-        redis_hostname = args.redis_hostname,
-        redis_port = args.redis_port,
-        workers = args.workers,
-        queue_limit = args.queue_limit,
-        verbosity = args.verbosity,
-        log_directory = args.log_directory,
-        log_backup_days = args.log_backup_days,
+        kv=args.kv,
+        redis_hostname=args.redis_hostname,
+        redis_port=args.redis_port,
+        workers=args.workers,
+        queue_limit=args.queue_limit,
+        verbosity=args.verbosity,
+        log_directory=args.log_directory,
+        log_backup_days=args.log_backup_days,
     )
+
 
 def main(
     instance: int,
@@ -110,31 +119,31 @@ def main(
     log_directory: Optional[str] = None,
     log_backup_days: int = 7,
 ):
-    """ Entrypoint for a Pypeline"""
-    service_id = ServiceIdentifier(
-        socket.gethostname(),
-        instance
-    )
+    """Entrypoint for a Pypeline"""
+    service_id = ServiceIdentifier(socket.gethostname(), instance)
 
     logger = logging.getLogger(str(service_id))
-    logger_level = [
-        logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG
-    ][verbosity]
-    
+    logger_level = [logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG][
+        verbosity
+    ]
+
     if log_directory is not None:
         for ext_level_tuple in [
-            ("log", min(logging.INFO, logger_level)), # INFO and finer
-            ("err", max(logging.WARNING, logger_level)) # WARNING and coarser
+            ("log", min(logging.INFO, logger_level)),  # INFO and finer
+            ("err", max(logging.WARNING, logger_level)),  # WARNING and coarser
         ]:
             log_ext, log_level = ext_level_tuple
             if log_level < logger_level:
                 continue
 
             fh = TimedRotatingFileHandler(
-                os.path.join(log_directory, f"pypeline_{service_id.hostname}_{service_id.enumeration}.{log_ext}"),
-                when='midnight',
+                os.path.join(
+                    log_directory,
+                    f"pypeline_{service_id.hostname}_{service_id.enumeration}.{log_ext}",
+                ),
+                when="midnight",
                 utc=True,
-                backupCount=log_backup_days
+                backupCount=log_backup_days,
             )
             fh.setFormatter(LogFormatter())
             fh.setLevel(log_level)
@@ -150,7 +159,12 @@ def main(
 
     context_dict = {}
     context_name = context
-    assert import_module(context_name, modulePrefix="context", definition_dict=context_dict, logger=logger)
+    assert import_module(
+        context_name,
+        modulePrefix="context",
+        definition_dict=context_dict,
+        logger=logger,
+    )
     context = context_dict.pop(context_name)
 
     context.setup(
@@ -173,16 +187,16 @@ def main(
     previous_stage_list = None
     cleanup_stability_factor = 5
     process_changed_count = 0
-    process_asyncobj_jobs: List[Optional[mp.pool.ApplyResult]] = [None]*workers
-    process_states = [ProcessState.Idle]*workers
+    process_asyncobj_jobs: List[Optional[mp.pool.ApplyResult]] = [None] * workers
+    process_states = [ProcessState.Idle] * workers
     status = ServiceStatus(
-        workers_busy_count=0,
-        workers_total_count=workers,
-        process_job_queue=[]
+        workers_busy_count=0, workers_total_count=workers, process_job_queue=[]
     )
     job_id = 1
 
-    sys.excepthook = lambda *args: logger.error("".join(traceback.format_exception(*args)))
+    sys.excepthook = lambda *args: logger.error(
+        "".join(traceback.format_exception(*args))
+    )
     # this happens after exception_hook even in the event of an exception
     atexit.register(lambda: logger.warning("Exiting."))
 
@@ -192,8 +206,10 @@ def main(
             for process_id in range(len(process_asyncobj_jobs)):
                 process_async_obj = process_asyncobj_jobs[process_id]
                 if process_async_obj is not None and process_async_obj.ready():
-                    successful = process_async_obj.get() # process is safely wrapped
-                    logger.info(f"Process #{process_id} has {'completed' if successful else 'failed'}.")
+                    successful = process_async_obj.get()  # process is safely wrapped
+                    logger.info(
+                        f"Process #{process_id} has {'completed' if successful else 'failed'}."
+                    )
 
                     process_states[process_id] = ProcessState.Finished
                     if not successful:
@@ -202,7 +218,10 @@ def main(
                     process_asyncobj_jobs[process_id] = None
                     status.workers_busy_count -= 1
 
-                if process_asyncobj_jobs[process_id] is None and len(status.process_job_queue) > 0:
+                if (
+                    process_asyncobj_jobs[process_id] is None
+                    and len(status.process_job_queue) > 0
+                ):
                     job_parameters = status.process_job_queue.pop(0)
                     logger.info(f"Spawning Process #{process_id}")
                     process_asyncobj_jobs[process_id] = pool.apply_async(
@@ -211,8 +230,8 @@ def main(
                             service_id.process_identifier(process_id),
                             job_parameters,
                             redis_hostname,
-                            redis_port
-                        )
+                            redis_port,
+                        ),
                     )
                     process_states[process_id] = ProcessState.Busy
                     status.workers_busy_count += 1
@@ -231,8 +250,7 @@ def main(
                 break
 
             process_changed = (
-                stage_list is not None
-                and stage_list != previous_stage_list
+                stage_list is not None and stage_list != previous_stage_list
             )
             if process_changed:
                 process_changed_count += 1
@@ -242,10 +260,7 @@ def main(
                 process_changed_count = 0
                 previous_stage_list = stage_list
 
-                exclusion_list = get_stage_keys(
-                    stage_list,
-                    logger=logger
-                )
+                exclusion_list = get_stage_keys(stage_list, logger=logger)
                 exclusion_list.extend(redis_interface.REDIS_HASH_KEYS)
                 logger.debug(f"Clear all except: {exclusion_list}")
                 redis_interface.clear(exclusion_list)
@@ -253,26 +268,28 @@ def main(
             new_context_name = redis_interface.context
             if new_context_name != context_name:
                 try:
-                    import_module(new_context_name, modulePrefix="context", definition_dict=context_dict, logger=logger)
+                    import_module(
+                        new_context_name,
+                        modulePrefix="context",
+                        definition_dict=context_dict,
+                        logger=logger,
+                    )
 
                     context_name = new_context_name
                     context = context_dict.pop(context_name)
                     context.setup(
-                        service_id.hostname,
-                        service_id.enumeration,
-                        logger=logger
+                        service_id.hostname, service_id.enumeration, logger=logger
                     )
                 except:
-                    logger.warning(f"Could not load new Context: `{new_context_name}`. Maintaining current Context: `{context_name}`.")
+                    logger.warning(
+                        f"Could not load new Context: `{new_context_name}`. Maintaining current Context: `{context_name}`."
+                    )
                     redis_interface.context = context_name
 
             # Wait until the process-stage returns outputs
             context_environment = redis_interface.context_environment
             try:
-                context_outputs = context.run(
-                    env=context_environment,
-                    logger=logger
-                )
+                context_outputs = context.run(env=context_environment, logger=logger)
             except KeyboardInterrupt:
                 logger.info("Keyboard Interrupt. Awaiting processes...")
                 context_outputs = False
@@ -282,12 +299,14 @@ def main(
                 # logger.debug(f"{context_name}.run() returned None.")
                 continue
             if context_outputs is False:
-                logger.warning(f"{context_name}.run() returned False. Awaiting processes: {status})")
+                logger.warning(
+                    f"{context_name}.run() returned False. Awaiting processes: {status})"
+                )
                 continue
 
             redis_kvcache = redis_interface.get_all()
             stages_keyvalue = redis_kvcache.get("#STAGES", None)
-            
+
             for key in redis_interface.REDIS_HASH_KEYS:
                 redis_kvcache.pop(key, None)
 
@@ -297,32 +316,36 @@ def main(
                 context_name=context_name,
                 context_output=context_outputs,
                 context_dehydrated=context.dehydrate(),
-                stage_list=stages_keyvalue.split(" ") if stages_keyvalue is not None else []
+                stage_list=(
+                    stages_keyvalue.split(" ") if stages_keyvalue is not None else []
+                ),
             )
             job_id += 1
             event = JobEvent.Queue
 
             if stages_keyvalue is None or "skip" in stages_keyvalue[0:4]:
-                logger.info(f"#STAGES key begins with 'skip' or is missing. Not processing. ('{stages_keyvalue}')")
-                event=JobEvent.Skip
+                logger.info(
+                    f"#STAGES key begins with 'skip' or is missing. Not processing. ('{stages_keyvalue}')"
+                )
+                event = JobEvent.Skip
 
             elif len(status.process_job_queue) == queue_limit:
                 message = f"Queue limit of {queue_limit} reached."
                 logger.warning(message)
 
-                event=JobEvent.Drop
+                event = JobEvent.Drop
                 if hasattr(context, "note"):
-                    context.note( # TODO change to service note
+                    context.note(  # TODO change to service note
                         ProcessNote.Error,
-                        process_id = None,
-                        logger = logger,
-                        error = RuntimeError(message),
+                        process_id=None,
+                        logger=logger,
+                        error=RuntimeError(message),
                     )
 
             job_event_message = JobEventMessage(
                 event=event,
                 job_parameters=params,
-                context_environment=context_environment
+                context_environment=context_environment,
             )
             logger.debug(f"job_event_message: {job_event_message}")
             redis_interface.job_event_message = job_event_message
@@ -330,7 +353,7 @@ def main(
                 continue
 
             status.process_job_queue.append(params)
-    
+
     atexit.unregister(lambda: logger.warning("Exiting."))
     pool.close()
     logger.warning("Finished.")

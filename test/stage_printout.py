@@ -1,3 +1,4 @@
+import errno
 import time
 import logging
 import argparse
@@ -9,7 +10,8 @@ NAME = "printout"
 
 STAGE_CONTEXT = None
 
-def run(argstr, inputs, env, logger = None):
+
+def run(argstr, inputs, env, logger=None):
     if logger is None:
         logger = logging.getLogger(NAME)
 
@@ -21,20 +23,29 @@ def run(argstr, inputs, env, logger = None):
         "--sleep",
         default=0,
         type=int,
-        help="How long to sleep after printing arguments."
+        help="How long to sleep after printing arguments.",
     )
     args = parser.parse_args(argstr.split(" "))
 
-    message = '\n'.join([
-        f"argstr: {argstr}",
-        f"inputs: {inputs}",
-        f"env: {env}",
-        f"stage_context: {STAGE_CONTEXT}"
-    ])
+    message = "\n".join(
+        [
+            f"argstr: {argstr}",
+            f"inputs: {inputs}",
+            f"env: {env}",
+            f"stage_context: {STAGE_CONTEXT}",
+        ]
+    )
     if args.sleep > 0:
-        message += f"\n\nsleeping for {args.sleep} seconds..."        
-
+        message += f"\n\nsleeping for {args.sleep} seconds..."
     logger.info(message)
+
+    if (
+        STAGE_CONTEXT is not None
+        and STAGE_CONTEXT.get("runs_left", -1) == 1
+        and STAGE_CONTEXT.get("raise_exception", True)
+    ):
+        raise OSError(errno.EAGAIN, "Testing the retry method")
+
     if args.sleep > 0:
         time.sleep(args.sleep)
 

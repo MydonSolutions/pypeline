@@ -5,7 +5,16 @@ import sys
 import traceback
 
 from .redis_interface import RedisServiceInterface
-from .dataclasses import ProcessIdentifier, ServiceIdentifier, JobParameters, ProcessNote, ProcessStatus, ProcessNoteMessage, StageTimestamp, JobEventMessage
+from .dataclasses import (
+    JobProgress,
+    ProcessIdentifier,
+    ServiceIdentifier,
+    JobParameters,
+    ProcessNote,
+    ProcessStatus,
+    ProcessNoteMessage,
+    StageTimestamp,
+)
 
 
 class StageException(Exception):
@@ -25,20 +34,19 @@ class StageException(Exception):
 
 
 def import_module(
-    stagename,
-    modulePrefix="stage",
-    definition_dict=globals(),
-    logger=None
+    stagename, modulePrefix="stage", definition_dict=globals(), logger=None
 ):
     log_debug_func = print if logger is None else logger.debug
     log_error_func = print if logger is None else logger.error
     if stagename not in definition_dict:  # stagename not in sys.modules:
         try:
-            definition_dict[stagename] = importlib.import_module(f"{modulePrefix}_{stagename}")
+            definition_dict[stagename] = importlib.import_module(
+                f"{modulePrefix}_{stagename}"
+            )
         except ModuleNotFoundError as error:
             log_error_func(
-                f"Could not find {modulePrefix}_{stagename}.py:\n\t" +
-                    "\n\t".join(sys.path)
+                f"Could not find {modulePrefix}_{stagename}.py:\n\t"
+                + "\n\t".join(sys.path)
             )
             raise error
         except BaseException as error:
@@ -55,8 +63,8 @@ def import_module(
         definition_dict[stagename] = importlib.reload(definition_dict[stagename])
     except ModuleNotFoundError:
         log_error_func(
-            f"Could not find the {modulePrefix}_{stagename}.py module to reload, keeping existing version:\n\t" +
-                "\n\t".join(sys.path)
+            f"Could not find the {modulePrefix}_{stagename}.py module to reload, keeping existing version:\n\t"
+            + "\n\t".join(sys.path)
         )
         return False
     except:
@@ -70,10 +78,7 @@ def import_module(
 
 
 def parse_input_template(
-    input_template,
-    pypeline_outputs,
-    pypeline_lastinput,
-    logger=None
+    input_template, pypeline_outputs, pypeline_lastinput, logger=None
 ):
     log_debug_func = print if logger is None else logger.debug
     log_error_func = print if logger is None else logger.error
@@ -146,21 +151,21 @@ def parse_input_template(
     return ret
 
 
-def replace_keywords(keyword_dict, string, keyword_opener='$', keyword_closer='$'):
+def replace_keywords(keyword_dict, string, keyword_opener="$", keyword_closer="$"):
     for keyword, keyvalue in keyword_dict.items():
         keyword_value = (
             " ".join(map(str, keyvalue))
             if isinstance(keyvalue, list)
             else str(keyvalue)
         )
-        string = string.replace(f"{keyword_opener}{keyword}{keyword_closer}", keyword_value)
+        string = string.replace(
+            f"{keyword_opener}{keyword}{keyword_closer}", keyword_value
+        )
     return string
 
 
-def get_proc_dict_progress_str(proc,
-    inp_tmpl_dict, inp_tmplidx_dict,
-    inp_dict, inpidx_dict,
-    arg_dict, argidx_dict
+def get_proc_dict_progress_str(
+    proc, inp_tmpl_dict, inp_tmplidx_dict, inp_dict, inpidx_dict, arg_dict, argidx_dict
 ):
     return "{}: input_templateindex {}/{}, inputindex {}/{}, argindex {}/{}".format(
         proc,
@@ -173,11 +178,7 @@ def get_proc_dict_progress_str(proc,
     )
 
 
-def get_stage_keys(
-    stage_list_in_use,
-    definition_dict = None,
-    logger=None
-):
+def get_stage_keys(stage_list_in_use, definition_dict=None, logger=None):
     if definition_dict is None:
         definition_dict = {}
 
@@ -191,11 +192,7 @@ def get_stage_keys(
             import_module(stage_name, definition_dict=definition_dict, logger=logger)
         stage = definition_dict[stage_name]
 
-        for proc_key in [
-            "ENV_KEY",
-            "INP_KEY",
-            "ARG_KEY"
-        ]:
+        for proc_key in ["ENV_KEY", "INP_KEY", "ARG_KEY"]:
             if not hasattr(stage, proc_key):
                 continue
             attr = getattr(stage, proc_key)
@@ -204,13 +201,14 @@ def get_stage_keys(
 
     return rediskeys_in_use
 
+
 def process(
     identifier: ProcessIdentifier,
     job_parameters: JobParameters,
     redis_hostname: str,
-    redis_port: int
+    redis_port: int,
 ):
-    '''
+    """
     This function wraps `process_unsafe` in a try-except block, handling any exceptions.
 
     Params:
@@ -220,15 +218,15 @@ def process(
             The dataclass containing all the arguments required for a process
         redis_hostname: str
         redis_port: int
-    
+
         Logs with `logging.getLogger(str(identifier))`
-    
+
     Returns:
         bool
             Whether an exception was raised or not.
-    '''
+    """
     logger = logging.getLogger(str(identifier))
-    
+
     redis_interface = RedisServiceInterface(
         ServiceIdentifier(identifier.hostname, identifier.enumeration),
         host=redis_hostname,
@@ -236,51 +234,79 @@ def process(
     )
 
     stage_dict = {}
-    import_module(job_parameters.context_name, modulePrefix="context", definition_dict=stage_dict, logger=logger)
-    try:
-        process_unsafe(identifier, job_parameters, redis_interface, logger, stage_dict)
-        return True
-    except StageException as err:
-        logger.error(f"StageException: {err}")
-        logger.debug(f"Traceback: {traceback.format_exc()}")
-        redis_interface.process_note_message = ProcessNoteMessage(
-            job_id=job_parameters.job_id,
-            process_note=ProcessNote.StageError,
-            process_id=identifier.process_enumeration,
-            stage_name=err.stage_name,
-            error_message=f"{err.exception}",
-        )
-    except BaseException as err:
-        logger.error(f"{err}")
-        logger.debug(f"Traceback: {traceback.format_exc()}")
-
-        process_context = stage_dict[job_parameters.context_name]
-        if hasattr(process_context, "note"):
-            process_context.note(
-                ProcessNote.Error,
-                process_id = identifier,
-                logger = logger,
-                error = err,
+    import_module(
+        job_parameters.context_name,
+        modulePrefix="context",
+        definition_dict=stage_dict,
+        logger=logger,
+    )
+    job_progress = JobProgress(job_parameters)
+    while True:
+        try:
+            process_unsafe(
+                identifier,
+                job_parameters,
+                redis_interface,
+                logger,
+                stage_dict,
+                job_progress=job_progress,
             )
-        
-        redis_interface.process_note_message = ProcessNoteMessage(
-            job_id=job_parameters.job_id,
-            process_note=ProcessNote.Error,
-            process_id=identifier.process_enumeration,
-            stage_name=None,
-            error_message=traceback.format_exc()
-        )
+            return True
+        except StageException as err:
+            process_context = stage_dict[job_parameters.context_name]
+            if hasattr(process_context, "exceptstage"):
+                if process_context.exceptstage(
+                    err.exception,
+                    logger=logger,
+                    stage_name=err.stage_name,
+                ):
+                    continue
+
+            logger.error(f"StageException: {err}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
+            redis_interface.process_note_message = ProcessNoteMessage(
+                job_id=job_parameters.job_id,
+                process_note=ProcessNote.StageError,
+                process_id=identifier.process_enumeration,
+                stage_name=err.stage_name,
+                error_message=f"{err.exception}",
+            )
+            break
+
+        except BaseException as err:
+            logger.error(f"{err}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
+
+            process_context = stage_dict[job_parameters.context_name]
+            if hasattr(process_context, "note"):
+                process_context.note(
+                    ProcessNote.Error,
+                    process_id=identifier,
+                    logger=logger,
+                    error=err,
+                )
+
+            redis_interface.process_note_message = ProcessNoteMessage(
+                job_id=job_parameters.job_id,
+                process_note=ProcessNote.Error,
+                process_id=identifier.process_enumeration,
+                stage_name=None,
+                error_message=traceback.format_exc(),
+            )
+            break
     return False
+
 
 def process_unsafe(
     identifier: ProcessIdentifier,
     job_parameters: JobParameters,
     redis_interface: RedisServiceInterface,
     logger: logging.Logger,
-    stage_dict: dict
+    stage_dict: dict,
+    job_progress: JobProgress = None,
 ):
-    '''
-    This function raises errors as necessary 
+    """
+    This function raises errors as necessary
 
     Params:
         identifier: Identifier,
@@ -291,12 +317,12 @@ def process_unsafe(
         logger: logging.Logger
         stage_dict:
             The dictionary of modules, holding only the context stage.
-    '''
+    """
     logger.debug(f"{identifier} starting: {job_parameters}")
     status = ProcessStatus(
         job_id=job_parameters.job_id,
         process_id=identifier.process_enumeration,
-        stage_timestamps=[]
+        stage_timestamps=[],
     )
 
     redis_interface.process_note_message = ProcessNoteMessage(
@@ -314,9 +340,9 @@ def process_unsafe(
     if hasattr(context, "note"):
         context.note(
             ProcessNote.Start,
-            process_id = identifier,
-            redis_kvcache = job_parameters.redis_kvcache,
-            logger = logger,
+            process_id=identifier,
+            redis_kvcache=job_parameters.redis_kvcache,
+            logger=logger,
         )
 
     keywords = {
@@ -327,66 +353,60 @@ def process_unsafe(
         "stages": [],
     }
 
-    pypeline_envvar = {}
-    pypeline_input_templates = {}
-    pypeline_input_templateindices = {}
-    pypeline_inputs = {}
-    pypeline_inputindices = {}
-    pypeline_lastinput = {}
-    pypeline_args = {}
-    pypeline_argindices = {}
-    pypeline_stage_popened = {}
+    if job_progress is None:
+        job_progress = JobProgress(job_parameters)
 
-    stage_index = 0
-    stage_outputs = {
-        job_parameters.context_name: job_parameters.context_output
-    }
+    if not job_progress.imported_modules:
+        for stage_name in job_parameters.stage_list:
+            try:
+                import_module(stage_name, definition_dict=stage_dict, logger=logger)
+            except BaseException as error:
+                raise RuntimeError(f"Could not load stage: {stage_name}") from error
 
-    for stage_name in job_parameters.stage_list:
-        try:
-            import_module(
-                stage_name,
-                definition_dict=stage_dict,
-                logger=logger
-            )
-        except BaseException as error:
-            raise RuntimeError(f"Could not load stage: {stage_name}") from error
+            envkey = stage_dict[stage_name].ENV_KEY
+            inpkey = stage_dict[stage_name].INP_KEY
+            argkey = stage_dict[stage_name].ARG_KEY
 
-        envkey = stage_dict[stage_name].ENV_KEY
-        inpkey = stage_dict[stage_name].INP_KEY
-        argkey = stage_dict[stage_name].ARG_KEY
+            # Load INP, ARG and ENV key's value for the process if applicable
+            ## INP
+            if inpkey is not None:
+                job_progress.stage_map_input_templates[stage_name] = (
+                    job_parameters.redis_kvcache[inpkey].split(";")
+                )
+            else:
+                job_progress.stage_map_input_templates[stage_name] = [None]
+            job_progress.stage_map_input_templateindices[stage_name] = 0
 
-        # Load INP, ARG and ENV key's value for the process if applicable
-        ## INP
-        if inpkey is not None:
-            pypeline_input_templates[stage_name] = job_parameters.redis_kvcache[inpkey].split(';')
-        else:
-            pypeline_input_templates[stage_name] = [None]
-        pypeline_input_templateindices[stage_name] = 0
-        
-        ## ARG
-        if argkey is not None:
-            pypeline_args[stage_name] = job_parameters.redis_kvcache[argkey].split(';')
-        else:
-            pypeline_args[stage_name] = [None]
-        pypeline_argindices[stage_name] = 0
+            ## ARG
+            if argkey is not None:
+                job_progress.stage_map_args[stage_name] = job_parameters.redis_kvcache[
+                    argkey
+                ].split(";")
+            else:
+                job_progress.stage_map_args[stage_name] = [None]
+            job_progress.stage_map_argindices[stage_name] = 0
 
-        ## ENV
-        if envkey is not None:
-            pypeline_envvar[stage_name] = job_parameters.redis_kvcache[envkey]
-        else:
-            pypeline_envvar[stage_name] = None
-        
-        pypeline_inputindices[stage_name] = 0
-    
+            ## ENV
+            if envkey is not None:
+                job_progress.stage_map_envvar[stage_name] = (
+                    job_parameters.redis_kvcache[envkey]
+                )
+            else:
+                job_progress.stage_map_envvar[stage_name] = None
+
+            job_progress.stage_map_inputindices[stage_name] = 0
+    job_progress.imported_modules = True
+
     while True:
-        stage_name = job_parameters.stage_list[stage_index]
+        stage_name = job_progress.stage_name()
 
         # wait on any previous POPENED
-        #TODO consider removing detached stage capabilities...
-        if stage_name[-1] == "&" and stage_name in pypeline_stage_popened:
+        # TODO consider removing detached stage capabilities...
+        if stage_name[-1] == "&" and stage_name in job_progress.status_map_popened:
             redis_interface.process_status = status
-            for popenIdx, popen in enumerate(pypeline_stage_popened[stage_name]):
+            for popenIdx, popen in enumerate(
+                job_progress.status_map_popened[stage_name]
+            ):
                 poll_count = 0
                 while popen.poll() is None:
                     if poll_count == 0:
@@ -398,46 +418,56 @@ def process_unsafe(
                     time.sleep(1)
             logger.debug(
                 "%s's %d process(es) are complete."
-                % (stage_name, len(pypeline_stage_popened[stage_name]))
+                % (stage_name, len(job_progress.status_map_popened[stage_name]))
             )
 
-        context.setupstage(stage_dict[stage_name], logger=logger) # TODO let the context do this in the note function
+        context.setupstage(
+            stage_dict[stage_name], logger=logger
+        )  # TODO let the context do this in the note function
 
-        if pypeline_inputindices[stage_name] == 0:
+        if job_progress.stage_map_inputindices[stage_name] == 0:
             # Parse the input_template and create the input list from permutations
-            proc_input_template = pypeline_input_templates[stage_name][
-                pypeline_input_templateindices[stage_name]
+            proc_input_template = job_progress.stage_map_input_templates[stage_name][
+                job_progress.stage_map_input_templateindices[stage_name]
             ]
-            pypeline_inputs[stage_name] = parse_input_template(
-                proc_input_template, stage_outputs, pypeline_lastinput,
-                logger = logger
+            job_progress.stage_map_inputs[stage_name] = parse_input_template(
+                proc_input_template,
+                job_progress.stage_map_outputs,
+                job_progress.stage_map_lastinput,
+                logger=logger,
             )
-            logger.debug(f"{stage_name} inputs: {pypeline_inputs[stage_name]}")
-            assert pypeline_inputs[stage_name]
+            logger.debug(
+                f"{stage_name} inputs: {job_progress.stage_map_inputs[stage_name]}"
+            )
+            assert job_progress.stage_map_inputs[stage_name]
 
-        inp = pypeline_inputs[stage_name][pypeline_inputindices[stage_name]]
-        pypeline_lastinput[stage_name] = inp
+        inp = job_progress.stage_map_inputs[stage_name][
+            job_progress.stage_map_inputindices[stage_name]
+        ]
+        job_progress.stage_map_lastinput[stage_name] = inp
 
-        arg = pypeline_args[stage_name][pypeline_argindices[stage_name]]
+        arg = job_progress.stage_map_args[stage_name][
+            job_progress.stage_map_argindices[stage_name]
+        ]
         if arg is not None:
             arg = replace_keywords(keywords, arg)
         logger.debug(f"{stage_name} arg: {arg}")
 
-        env = pypeline_envvar[stage_name]
+        env = job_progress.stage_map_envvar[stage_name]
         if env is not None:
             env = replace_keywords(keywords, env)
 
-        # Run the process        
+        # Run the process
         if hasattr(context, "note"):
             context.note(
                 ProcessNote.StageStart,
-                process_id = identifier,
-                redis_kvcache = job_parameters.redis_kvcache,
-                logger = logger,
-                stage = stage_dict[stage_name],
-                argvalue = arg,
-                inpvalue = inp,
-                envvalue = env,
+                process_id=identifier,
+                redis_kvcache=job_parameters.redis_kvcache,
+                logger=logger,
+                stage=stage_dict[stage_name],
+                argvalue=arg,
+                inpvalue=inp,
+                envvalue=env,
             )
         redis_interface.process_note_message = ProcessNoteMessage(
             job_id=job_parameters.job_id,
@@ -447,11 +477,7 @@ def process_unsafe(
             error_message=None,
         )
         status.stage_timestamps.append(
-            StageTimestamp(
-                name=stage_name,
-                start=time.time(),
-                end=None
-            )
+            StageTimestamp(name=stage_name, start=time.time(), end=None)
         )
         redis_interface.process_status = status
 
@@ -459,18 +485,22 @@ def process_unsafe(
 
         checkpoint_time = time.time()
         try:
-            stage_outputs[stage_name] = stage_dict[stage_name].run(arg, inp, env, logger=stage_logger)
+            job_progress.stage_map_outputs[stage_name] = stage_dict[stage_name].run(
+                arg, inp, env, logger=stage_logger
+            )
         except BaseException as err:
             if hasattr(context, "note"):
                 context.note(
                     ProcessNote.StageError,
-                    process_id = identifier,
-                    redis_kvcache = job_parameters.redis_kvcache,
-                    logger = logger,
-                    stage = stage_dict[stage_name],
-                    error = err
+                    process_id=identifier,
+                    redis_kvcache=job_parameters.redis_kvcache,
+                    logger=logger,
+                    stage=stage_dict[stage_name],
+                    error=err,
                 )
-            raise StageException(stage_name, err) #TODO ensure this is the neatest error stack possible
+            raise StageException(
+                stage_name, err
+            )  # TODO ensure this is the neatest error stack possible
 
         keywords["times"].append(time.time() - checkpoint_time)
         keywords["stages"].append(stage_name)
@@ -478,7 +508,7 @@ def process_unsafe(
         redis_interface.process_status = status
 
         if stage_name[-1] == "&":
-            pypeline_stage_popened[stage_name] = stage_dict[stage_name].POPENED
+            job_progress.status_map_popened[stage_name] = stage_dict[stage_name].POPENED
             logger.info(
                 "Captured %s's %d detached processes."
                 % (stage_name, len(stage_dict[stage_name].POPENED))
@@ -487,11 +517,11 @@ def process_unsafe(
         if hasattr(context, "note"):
             context.note(
                 ProcessNote.StageFinish,
-                process_id = identifier,
-                redis_kvcache = job_parameters.redis_kvcache,
-                logger = logger,
-                stage = stage_dict[stage_name],
-                output = stage_outputs[stage_name]
+                process_id=identifier,
+                redis_kvcache=job_parameters.redis_kvcache,
+                logger=logger,
+                stage=stage_dict[stage_name],
+                output=job_progress.stage_map_outputs[stage_name],
             )
         redis_interface.process_note_message = ProcessNoteMessage(
             job_id=job_parameters.job_id,
@@ -502,75 +532,26 @@ def process_unsafe(
         )
         redis_interface.process_status = status
 
-        # Increment through inputs, overflow increment through arguments
-        pypeline_inputindices[stage_name] += 1
-        if pypeline_inputindices[stage_name] >= len(pypeline_inputs[stage_name]):
-            pypeline_inputindices[stage_name] = 0
-            pypeline_input_templateindices[stage_name] += 1
-            if pypeline_input_templateindices[stage_name] >= len(
-                pypeline_input_templates[stage_name]
-            ):
-                pypeline_input_templateindices[stage_name] = 0
-                pypeline_argindices[stage_name] += 1
+        try:
+            job_progress.increment(logger)
+        except StopIteration:
+            logger.debug("Processing Done!")
+            redis_interface.process_status = status
+            break
 
-        # Proceed to next process or...
-        if stage_index + 1 < len(job_parameters.stage_list):
-            logger.debug("Next process")
+        progress_str = job_progress.get_progress_str()
+        logger.debug(progress_str)
 
-            stage_index += 1
-            stage_name = job_parameters.stage_list[stage_index]
-            if stage_name[0] == "*":
-                stage_name = stage_name[1:]
-            pypeline_input_templateindices[stage_name] = 0
-            pypeline_inputindices[stage_name] = 0
-            pypeline_argindices[stage_name] = 0
-        else:  # ... rewind to the closest next novel process (argumentindices indicate exhausted permutations)
-            logger.debug(f"Rewinding after {stage_name}")
-            while stage_index >= 0 and pypeline_argindices[stage_name] >= len(
-                pypeline_args[stage_name]
-            ):
-                progress_str = get_proc_dict_progress_str(
-                    stage_name,
-                    pypeline_input_templates,
-                    pypeline_input_templateindices,
-                    pypeline_inputs,
-                    pypeline_inputindices,
-                    pypeline_args,
-                    pypeline_argindices,
-                )
-                logger.debug(progress_str)
-
-                stage_index -= 1
-                stage_name = job_parameters.stage_list[stage_index]
-                if stage_name[0] == "*":
-                    stage_name = stage_name[1:]
-
-            # Break if there are no novel process argument-input permutations
-            if stage_index < 0:
-                logger.debug("Processing Done!")
-                redis_interface.process_status = status
-                break
-            progress_str = get_proc_dict_progress_str(
-                stage_name,
-                pypeline_input_templates,
-                pypeline_input_templateindices,
-                pypeline_inputs,
-                pypeline_inputindices,
-                pypeline_args,
-                pypeline_argindices,
-            )
-            logger.debug(progress_str)
-
-            logger.debug(f"Rewound to {job_parameters.stage_list[stage_index]}")
+        logger.debug(f"Rewound to {job_progress.stage_name()}")
 
     if hasattr(context, "note"):
         context.note(
             ProcessNote.Finish,
-            process_id = identifier,
-            redis_kvcache = job_parameters.redis_kvcache,
-            logger = logger,
+            process_id=identifier,
+            redis_kvcache=job_parameters.redis_kvcache,
+            logger=logger,
         )
-    
+
     redis_interface.process_note_message = ProcessNoteMessage(
         job_id=job_parameters.job_id,
         process_note=ProcessNote.Finish,

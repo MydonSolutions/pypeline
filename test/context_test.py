@@ -1,4 +1,5 @@
 import time, logging
+import errno
 from datetime import datetime
 
 from Pypeline import ProcessNote
@@ -10,7 +11,7 @@ STATE_env = None
 STATE_context = None
 
 
-def setup(hostname, instance, logger = None):
+def setup(hostname, instance, logger=None):
     if logger is None:
         logger = logging.getLogger(NAME)
 
@@ -36,7 +37,7 @@ def rehydrate(dehydration_tuple):
     STATE_context = dehydration_tuple[1]
 
 
-def run(env = None, logger = None):
+def run(env=None, logger=None):
     if logger is None:
         logger = logging.getLogger(NAME)
 
@@ -53,19 +54,36 @@ def run(env = None, logger = None):
     return STATE_data
 
 
-def setupstage(stage, logger = None):
+def setupstage(stage, logger=None):
     if logger is None:
         logger = logging.getLogger(NAME)
 
     global STATE_context
+    assert STATE_context is not None
     if hasattr(stage, "STAGE_CONTEXT"):
+        logger.info(f"Setting up {stage}")
         stage.STAGE_CONTEXT = STATE_context
+    else:
+        logger.info(f"Not setting up {stage}")
+
+
+def exceptstage(exception, logger: logging.Logger = None, **kwargs) -> bool:
+    if logger is None:
+        logger = logging.getLogger(NAME)
+    global STATE_context
+
+    if isinstance(exception, OSError):
+        if exception.errno == errno.EAGAIN:
+            logger.warning(f"Retrying after: {exception}")
+            STATE_context["raise_exception"] = False
+            return True
+    return True
 
 
 def note(processnote: ProcessNote, **kwargs):
     if kwargs["logger"] is None:
         kwargs["logger"] = logging.getLogger(NAME)
-    
+
     kwargs["logger"].info(f"{processnote.value}: kwargs={kwargs}")
 
 

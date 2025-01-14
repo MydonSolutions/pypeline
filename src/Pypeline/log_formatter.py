@@ -7,10 +7,10 @@ class LogFormatter(Formatter):
     def __init__(self, formats: Dict[int, str] = None, **kwargs):
         super().__init__()
 
-        if 'fmt' in kwargs:
+        if "fmt" in kwargs:
             raise ValueError(
-                'Format string must be passed to level-surrogate formatters, '
-                'not this one'
+                "Format string must be passed to level-surrogate formatters, "
+                "not this one"
             )
 
         if formats is None:
@@ -25,6 +25,6 @@ class LogFormatter(Formatter):
         )
 
     def format(self, record: LogRecord) -> str:
-        idx = bisect(self.formats, (record.levelno,), hi=len(self.formats)-1)
+        idx = bisect(self.formats, (record.levelno,), hi=len(self.formats) - 1)
         level, formatter = self.formats[idx]
         return formatter.format(record)
