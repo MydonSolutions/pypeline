@@ -539,7 +539,7 @@ def process_unsafe(
             redis_interface.process_status = status
             break
 
-        progress_str = job_progress.get_progress_str()
+        progress_str = job_progress.get_progress_str(stage_name)
         logger.debug(progress_str)
 
         logger.debug(f"Rewound to {job_progress.stage_name()}")

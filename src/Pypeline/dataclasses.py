@@ -192,8 +192,9 @@ class JobProgress(BaseModel):
             if self.stage_index < 0:
                 raise StopIteration
 
-    def get_progress_str(self) -> str:
-        stage_name = self.stage_name()
+    def get_progress_str(self, stage_name=None) -> str:
+        if stage_name is None:
+            stage_name = self.stage_name()
         return (
             f"{stage_name}: "
             + f"input_templateindex {self.stage_map_input_templateindices[stage_name]+1}/{len(self.stage_map_input_templates[stage_name])}, "
